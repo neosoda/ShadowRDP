@@ -16,6 +16,7 @@
 ## Navigation
 
 - [Éthique et usage responsable](#ethique-et-usage-responsable)
+- [Aperçu visuel](#apercu-visuel)
 - [Vue d'ensemble](#vue-densemble)
 - [Fonctionnalités](#fonctionnalites)
 - [Compatibilité Assistant <-> Déploiement](#compatibilite-assistant----deploiement)
@@ -46,6 +47,15 @@
 - Utilisation du script à des fins offensives, d'espionnage ou de contournement de contrôle.
 
 En cas de doute, suspendre l'usage et valider avec le RSSI/équipe sécurité avant déploiement.
+
+---
+
+## Apercu visuel
+
+<p align="center">
+  <img src="public/Capture1.png" alt="Capture 1 - interface ShadowRDP" width="48%" />
+  <img src="public/Capture2.png" alt="Capture 2 - interface ShadowRDP" width="48%" />
+</p>
 
 ---
 
