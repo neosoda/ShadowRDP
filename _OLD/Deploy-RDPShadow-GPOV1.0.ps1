@@ -5,8 +5,6 @@
 .DESCRIPTION
     A executer au demarrage des postes via GPO Startup Script.
     Configure RDP, Shadow, RPC, WinRM et le pare-feu de facon idempotente.
-.AUTHOR
-    Julien CRINON - Grand Est
 #>
 
 [CmdletBinding()]

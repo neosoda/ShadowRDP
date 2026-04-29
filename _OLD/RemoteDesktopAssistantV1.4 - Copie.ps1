@@ -265,7 +265,7 @@ function Write-ScanLog {
 $xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Remote Desktop Assistant - DSI" Height="760" Width="1080" MinHeight="620" MinWidth="820"
+        Title="Remote Desktop Assistant - DSI" Height="760" Width="1080" MinHeight="700" MinWidth="960"
         WindowStartupLocation="CenterScreen" Background="#0B1120" FontFamily="Segoe UI Variable Display, Segoe UI"
         TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
     <Window.Resources>
@@ -425,11 +425,6 @@ $xaml = @"
             <Setter Property="AlternatingRowBackground" Value="#132035"/>
             <Setter Property="HorizontalGridLinesBrush" Value="Transparent"/>
             <Setter Property="VerticalGridLinesBrush" Value="Transparent"/>
-            <Setter Property="CanUserResizeColumns" Value="True"/>
-            <Setter Property="CanUserReorderColumns" Value="False"/>
-            <Setter Property="SelectionMode" Value="Single"/>
-            <Setter Property="SelectionUnit" Value="FullRow"/>
-            <Setter Property="EnableRowVirtualization" Value="True"/>
         </Style>
 
         <Style TargetType="DataGridColumnHeader">
@@ -515,110 +510,80 @@ $xaml = @"
 
             <TabControl Grid.Row="1" Margin="24,0,24,0">
                 <TabItem Header="Assistant RDP">
-                    <ScrollViewer Margin="0,18,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <Grid MinHeight="500">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
+                    <Grid Margin="0,18,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                            <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,16">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                        <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
 
-                                    <StackPanel Grid.Column="0" Margin="0,0,18,0" MinWidth="260">
-                                        <Label Content="Cible" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="14"/>
-                                        <TextBlock Text="Nom de l'ordinateur ou adresse IP" Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,4,0,8"/>
-                                        <TextBox Name="txtComputerName"/>
-                                    </StackPanel>
+                                <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                                    <Label Content="Cible" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="14"/>
+                                    <TextBlock Text="Nom de l'ordinateur ou adresse IP" Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,4,0,8"/>
+                                    <TextBox Name="txtComputerName"/>
+                                </StackPanel>
 
-                                    <Button Name="btnConnect" Grid.Column="1" Content="Rechercher sessions" Background="{StaticResource AccentStrong}" Margin="0,31,10,0"/>
-                                    <Button Name="btnClassicRDP" Grid.Column="2" Content="RDP classique" Background="{StaticResource Success}" Margin="0,31,0,0" ToolTip="Ouvrir une session Bureau à distance classique"/>
-                                </Grid>
-                            </Border>
+                                <Button Name="btnConnect" Grid.Column="1" Content="Rechercher sessions" Background="{StaticResource AccentStrong}" Margin="0,31,10,0"/>
+                                <Button Name="btnClassicRDP" Grid.Column="2" Content="RDP classique" Background="{StaticResource Success}" Margin="0,31,0,0" ToolTip="Ouvrir une session Bureau à distance classique"/>
+                            </Grid>
+                        </Border>
 
-                            <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,16" MinHeight="250">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                    </Grid.RowDefinitions>
-
-                                    <Grid Grid.Row="0" Margin="0,0,0,14">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal">
-                                                <TextBlock Text="Sessions détectées" Foreground="{StaticResource TextPrimary}" FontSize="20" FontWeight="SemiBold"/>
-                                                <Border Background="#123954" CornerRadius="20" Padding="9,3" Margin="10,2,0,0">
-                                                    <TextBlock Text="qwinsta" Foreground="#B9E7FF" FontSize="11" FontWeight="SemiBold"/>
-                                                </Border>
-                                            </StackPanel>
-                                            <TextBlock Text="Sélectionnez une ligne pour activer l'intervention Shadow." Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,6,0,0"/>
-                                        </StackPanel>
-                                        <Border Grid.Column="1" Background="#0D2740" BorderBrush="#256B91" BorderThickness="1" CornerRadius="18" Padding="12,8" VerticalAlignment="Top">
-                                            <StackPanel Orientation="Horizontal">
-                                                <Ellipse Width="8" Height="8" Fill="{StaticResource Accent}" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                <TextBlock Name="lblSessionCount" Text="En attente" Foreground="#DDF7FF" FontSize="12" FontWeight="SemiBold"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-
-                                    <Border Grid.Row="1" Background="#0B1322" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="15" Padding="1">
-                                        <Grid>
-                                            <DataGrid Name="dgSessions" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="170">
-                                                <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="Session" Binding="{Binding SessionName}" Width="1.3*"/>
-                                                    <DataGridTextColumn Header="Utilisateur" Binding="{Binding Utilisateur}" Width="2*"/>
-                                                    <DataGridTextColumn Header="ID" Binding="{Binding ID}" Width="0.7*"/>
-                                                    <DataGridTextColumn Header="État" Binding="{Binding Etat}" Width="1*"/>
-                                                </DataGrid.Columns>
-                                            </DataGrid>
-                                            <Border Name="brdSessionsEmpty" Background="#0B1322" CornerRadius="14" Padding="24">
-                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                                    <TextBlock Text="Aucune session affichée" Foreground="{StaticResource TextPrimary}" FontSize="16" FontWeight="SemiBold" TextAlignment="Center"/>
-                                                    <TextBlock Name="txtSessionsEmpty" Text="Lancez une recherche pour afficher les sessions actives de la cible." Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,7,0,0" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="420"/>
-                                                </StackPanel>
-                                            </Border>
-                                        </Grid>
+                        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                                    <TextBlock Text="Sessions détectées" Foreground="{StaticResource TextPrimary}" FontSize="17" FontWeight="SemiBold"/>
+                                    <Border Background="#123954" CornerRadius="20" Padding="9,3" Margin="10,0,0,0">
+                                        <TextBlock Text="qwinsta" Foreground="#B9E7FF" FontSize="11" FontWeight="SemiBold"/>
                                     </Border>
-                                </Grid>
-                            </Border>
+                                </StackPanel>
+                                <DataGrid Name="dgSessions" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Session" Binding="{Binding SessionName}" Width="160"/>
+                                        <DataGridTextColumn Header="Utilisateur" Binding="{Binding Utilisateur}" Width="*"/>
+                                        <DataGridTextColumn Header="ID" Binding="{Binding ID}" Width="90"/>
+                                        <DataGridTextColumn Header="État" Binding="{Binding Etat}" Width="130"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
 
-                            <Border Grid.Row="2" Style="{StaticResource Card}">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                        <Border Grid.Row="2" Style="{StaticResource Card}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
 
-                                    <StackPanel Grid.Column="0">
-                                        <Label Content="Mode d'intervention Shadow" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="14"/>
-                                        <TextBlock Text="Choisissez le niveau d'assistance avant de lancer la prise en main." Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,4,0,12" TextWrapping="Wrap"/>
-                                        <WrapPanel>
-                                            <RadioButton Name="rbView" Content="Visualisation" IsChecked="True"/>
-                                            <RadioButton Name="rbControl" Content="Contrôle avec accord"/>
-                                            <RadioButton Name="rbNoConsent" Content="Forcer le contrôle" Foreground="{StaticResource Danger}"/>
-                                        </WrapPanel>
-                                    </StackPanel>
+                                <StackPanel Grid.Column="0">
+                                    <Label Content="Mode d'intervention Shadow" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="14"/>
+                                    <TextBlock Text="Choisissez le niveau d'assistance avant de lancer la prise en main." Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,4,0,12"/>
+                                    <WrapPanel>
+                                        <RadioButton Name="rbView" Content="Visualisation" IsChecked="True"/>
+                                        <RadioButton Name="rbControl" Content="Contrôle avec accord"/>
+                                        <RadioButton Name="rbNoConsent" Content="Forcer le contrôle" Foreground="{StaticResource Danger}"/>
+                                    </WrapPanel>
+                                </StackPanel>
 
-                                    <Button Name="btnLaunch" Grid.Column="1" Content="Lancer l'intervention" Background="{StaticResource AccentStrong}" MinWidth="210" Height="52" Margin="22,0,0,0" IsEnabled="False"/>
-                                </Grid>
-                            </Border>
-                        </Grid>
-                    </ScrollViewer>
+                                <Button Name="btnLaunch" Grid.Column="1" Content="Lancer l'intervention" Background="{StaticResource AccentStrong}" Width="230" Height="52" Margin="22,0,0,0" IsEnabled="False"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </TabItem>
 
                 <TabItem Header="Scan réseau">
-                    <ScrollViewer Margin="0,18,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <Grid MinHeight="500">
+                    <Grid Margin="0,18,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
@@ -679,7 +644,6 @@ $xaml = @"
                             </StackPanel>
                         </Border>
                     </Grid>
-                    </ScrollViewer>
                 </TabItem>
             </TabControl>
 
@@ -707,9 +671,6 @@ $txtComputerName = $window.FindName("txtComputerName")
 $btnConnect = $window.FindName("btnConnect")
 $btnClassicRDP = $window.FindName("btnClassicRDP")
 $dgSessions = $window.FindName("dgSessions")
-$lblSessionCount = $window.FindName("lblSessionCount")
-$brdSessionsEmpty = $window.FindName("brdSessionsEmpty")
-$txtSessionsEmpty = $window.FindName("txtSessionsEmpty")
 $rbView = $window.FindName("rbView")
 $rbControl = $window.FindName("rbControl")
 $rbNoConsent = $window.FindName("rbNoConsent")
@@ -723,10 +684,6 @@ $pbNetworkScan = $window.FindName("pbNetworkScan")
 $lblNetworkScanProgress = $window.FindName("lblNetworkScanProgress")
 $lblStatus = $window.FindName("lblStatus")
 $brdStatus = $window.FindName("brdStatus")
-
-$lblSessionCount.Text = "En attente"
-$brdSessionsEmpty.Visibility = "Visible"
-$txtSessionsEmpty.Text = "Lancez une recherche pour afficher les sessions actives de la cible."
 
 $Script:CurrentTarget = ""
 $Script:NetworkScanInProgress = $false
@@ -827,9 +784,6 @@ $btnConnect.Add_Click({
         $btnConnect.IsEnabled = $false
         $btnLaunch.IsEnabled = $false
         $dgSessions.ItemsSource = $null
-        $lblSessionCount.Text = "Recherche..."
-        $brdSessionsEmpty.Visibility = "Visible"
-        $txtSessionsEmpty.Text = "Interrogation de la cible en cours..."
         [System.Windows.Forms.Application]::DoEvents()
     
         try {
@@ -849,25 +803,17 @@ $btnConnect.Add_Click({
             if ($sessions.Count -eq 0) {
                 $lblStatus.Content = "Aucune session active. Utilisez 'RDP Classique'."
                 $brdStatus.Background = "#FFFF6B6B"
-                $lblSessionCount.Text = "0 session"
-                $brdSessionsEmpty.Visibility = "Visible"
-                $txtSessionsEmpty.Text = "Aucune session active n'a été trouvée sur cette cible."
                 [System.Windows.MessageBox]::Show([string]"Aucune session active n'a été trouvée sur le poste.`n`nVous pouvez utiliser le bouton 'RDP Classique' pour ouvrir une session standard sur ce poste.", "Information", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
             }
             else {
                 $dgSessions.ItemsSource = $sessions
                 $lblStatus.Content = "$($sessions.Count) session(s) trouvée(s)."
                 $brdStatus.Background = "#FF4CAF50"
-                $lblSessionCount.Text = "$($sessions.Count) session(s)"
-                $brdSessionsEmpty.Visibility = "Collapsed"
             }
         }
         catch {
             $lblStatus.Content = "Erreur : $($_.Exception.Message)"
             $brdStatus.Background = "#FFFF6B6B"
-            $lblSessionCount.Text = "Erreur"
-            $brdSessionsEmpty.Visibility = "Visible"
-            $txtSessionsEmpty.Text = "La recherche n'a pas abouti. Vérifiez la cible, le réseau et les droits."
             [System.Windows.MessageBox]::Show([string]$_.Exception.Message, "Information", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
         }
         finally {
