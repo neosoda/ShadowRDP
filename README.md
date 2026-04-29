@@ -7,7 +7,7 @@
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1+-5391FE?logo=powershell&logoColor=white)](#prerequis)
 [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011%20%7C%20Server-0078D4?logo=windows&logoColor=white)](#prerequis)
 [![Type](https://img.shields.io/badge/Projet-Administration%20RDP-0A7E8C)](#fonctionnalites)
-[![Etat](https://img.shields.io/badge/Etat-Production-2EA043)](#execution-rapide)
+[![État](https://img.shields.io/badge/Etat-Production-2EA043)](#demarrage-rapide)
 
 </div>
 
@@ -29,7 +29,7 @@
 
 ---
 
-## Ethique et usage responsable
+## Éthique et usage responsable
 
 > Ce toolkit est destiné uniquement à l'administration légitime, au support utilisateur autorisé et à la maintenance d'un parc maîtrisé.
 
@@ -50,7 +50,7 @@ En cas de doute, suspendre l'usage et valider avec le RSSI/équipe sécurité av
 
 ---
 
-## Apercu visuel
+## Aperçu visuel
 
 <p align="center">
   <img src="public/Capture1.png" alt="Capture 1 - interface ShadowRDP" width="48%" />
@@ -83,7 +83,7 @@ SHADOW RDP/
 
 ---
 
-## Fonctionnalites
+## Fonctionnalités
 
 - Assistance RDP Shadow (visualisation, contrôle, no-consent)
 - Lancement RDP classique
@@ -97,7 +97,7 @@ SHADOW RDP/
 
 ---
 
-## Compatibilite Assistant <-> Deploiement
+## Compatibilité Assistant <-> Déploiement
 
 `Deploy-RDPGPO.ps1` prépare les postes cibles pour les appels utilisés par `RemoteDesktopAssistantV1.4.ps1`.
 
@@ -112,7 +112,7 @@ SHADOW RDP/
 
 ---
 
-## Demarrage rapide
+## Démarrage rapide
 
 ### Assistant opérateur
 
@@ -146,7 +146,7 @@ powershell -ExecutionPolicy Bypass -File .\Deploy-RDPGPO.ps1 -EnableWinRM -MaxAg
 
 ---
 
-## Deploiement GPO Startup
+## Déploiement GPO Startup
 
 Dans la GPO, référencer le wrapper:
 
@@ -185,7 +185,7 @@ GPO-DEPLOYMENT.md
 
 ---
 
-## Scan reseau CIDR
+## Scan réseau CIDR
 
 Le champ scan accepte:
 
@@ -212,7 +212,7 @@ Comportement:
 
 ---
 
-## Prerequis
+## Prérequis
 
 - Windows PowerShell 5.1+
 - Droits administrateur local
@@ -222,7 +222,7 @@ Comportement:
 
 ---
 
-## Tests et verifications
+## Tests et vérifications
 
 ### Validation syntaxe PowerShell
 
