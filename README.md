@@ -1,65 +1,97 @@
-# ShadowRDP
+﻿# ShadowRDP
 
-Scripts PowerShell pour **déployer** et **assister** des sessions **RDP** (Shadow / prise en main à distance) : mise en place via **GPO**, outil d’assistance, ressources associées.
+> Toolkit PowerShell pour deploiement GPO et assistance RDP Shadow.
 
----
+## Apercu rapide
 
-## Sommaire
+| Module | Fichier principal | Objectif |
+|---|---|---|
+| Deploiement | `Deploy-RDPShadow-GPO.ps1` | Configure RDP, Shadow, WinRM et pare-feu |
+| Assistant | `RemoteDesktopAssistantV1.3.ps1` | UI operateur: sessions Shadow + scan reseau |
+| Versionning | `New-ScriptVersion.ps1` | Cree des versions incrementales sans ecrasement |
 
-- [Fonctionnalités](#fonctionnalités)
-- [Contenu du dépôt](#contenu-du-dépôt)
-- [Pré-requis](#pré-requis)
-- [Démarrage rapide](#démarrage-rapide)
-- [Bonnes pratiques & sécurité](#bonnes-pratiques--sécurité)
-- [Support](#support)
+## Arborescence
 
----
-
-## Fonctionnalités
-
-- Déploiement/paramétrage “Shadow RDP” via **GPO**
-- Script d’assistance “Remote Desktop Assistant”
-- Ressources (icône + documentation)
-
-## Contenu du dépôt
-
-| Fichier | Rôle |
-|---|---|
-| `Deploy-RDPShadow-GPO.ps1` | Déploiement / paramétrage via GPO |
-| `RemoteDesktopAssistantV1.ps1` | Script d’assistance (v1) |
-| `RemoteDesktopAssistantV1.2.ps1` | Script d’assistance (v1.2) |
-| `Remoteicon.ico` | Icône |
-| `Remote_Desktop_Assistant_Documentation.pdf` | Documentation |
-
-## Pré-requis
-
-- Windows + PowerShell (**Windows PowerShell 5.1** ou **PowerShell 7+**)
-- Droits adaptés à votre contexte (GPO / admin local / délégations)
-
-## Démarrage rapide
-
-1) Cloner :
-
-```powershell
-git clone https://github.com/neosoda/ShadowRDP
-cd ShadowRDP
+```text
+SHADOW RDP/
+|- Deploy-RDPShadow-GPO.ps1
+|- RemoteDesktopAssistantV1.3.ps1
+|- New-ScriptVersion.ps1
+|- README.md
+|- _OLD/
 ```
 
-2) Ouvrir/consulter les scripts :
+## Fonctionnalites
 
-- `Deploy-RDPShadow-GPO.ps1` pour le volet GPO
-- `RemoteDesktopAssistantV1.2.ps1` (ou v1) pour l’assistance
+- Assistance RDP Shadow (visualisation, controle, no-consent)
+- Lancement RDP classique
+- Scan reseau en onglet dedie (IP + nom d'hote)
+- Progression temps reel + annulation de scan
+- Deploiement GPO idempotent
 
-3) Lire la doc :
+## Scan reseau (CIDR)
 
-- `Remote_Desktop_Assistant_Documentation.pdf`
+Le champ scan accepte maintenant la syntaxe:
 
-## Bonnes pratiques & sécurité
+```text
+x.x.x.x/x
+```
 
-- Tester **en environnement de recette** avant production.
-- Appliquer le **principe du moindre privilège** (droits, GPO, délégations).
-- Tracer/valider les usages (journalisation, processus interne) selon votre politique SI.
+Exemples:
+
+- `192.168.1.0/24`
+- `10.20.30.0/24`
+- `172.16.5.0/26`
+
+Comportement:
+
+- Le scan teste les hotes utilisables du reseau
+- La fenetre reste reactive (scan asynchrone)
+- Le bouton `Annuler` interrompt proprement le scan en cours
+
+## Versionning intelligent
+
+Creer une nouvelle version de script:
+
+```powershell
+.\New-ScriptVersion.ps1 -SourceFile .\RemoteDesktopAssistantV1.3.ps1
+.\New-ScriptVersion.ps1 -SourceFile .\Deploy-RDPShadow-GPO.ps1
+```
+
+Regles:
+
+- Detecte les versions existantes (`NomVx.y.ps1`)
+- Incremente automatiquement la version mineure
+- N'ecrit rien si le contenu est identique a la derniere version
+- Forcer une version: ajouter `-Force`
+
+## Execution rapide
+
+```powershell
+# Assistant operateur
+powershell -ExecutionPolicy Bypass -File .\RemoteDesktopAssistantV1.3.ps1
+
+# Script de deploiement
+powershell -ExecutionPolicy Bypass -File .\Deploy-RDPShadow-GPO.ps1
+```
+
+## Prerequis
+
+- Windows PowerShell 5.1+
+- Droits administrateur local
+- Contexte AD/GPO selon votre organisation
+
+## Bonnes pratiques
+
+- Tester en preproduction avant diffusion large
+- Limiter les ouvertures pare-feu au strict necessaire
+- Journaliser les executions en environnement de prod
 
 ## Support
 
-- Ouvrir une issue sur GitHub : décrire le contexte (OS, version PowerShell, domaine/AD, erreurs exactes).
+Pour un diagnostic rapide, inclure:
+
+- Version du script utilisee
+- Version de Windows / PowerShell
+- Message d'erreur exact
+- Contexte reseau (VLAN, routage, firewall)
