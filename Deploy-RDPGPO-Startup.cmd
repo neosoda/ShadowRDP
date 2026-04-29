@@ -28,7 +28,7 @@ if not exist "%PS1%" (
 REM ExecutionPolicy Bypass uniquement pour ce processus, sans modifier la machine.
 "%PSEXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass ^
     -File "%PS1%" ^
-    -ShadowMode 4 ^
+    -ShadowMode 2 ^
     -AllowedRemoteAddresses "LocalSubnet" ^
     -NetworkWaitTimeoutSeconds 0 ^
     -NetworkRetryIntervalSeconds 5 ^

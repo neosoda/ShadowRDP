@@ -44,7 +44,7 @@ SHADOW RDP/
 | Ping / scan reseau | Regle pare-feu `FPS-ICMP4-ERQ-In*` |
 | `qwinsta.exe /server:<poste>` | `RemoteRegistry` demarre + regles `RemoteSvc*`, `RemoteEventLog*`, `WMI-*`, `FPS-SMB-In*` |
 | `mstsc.exe /v:<poste>` | RDP active + regles `RemoteDesktop-*` |
-| `mstsc.exe /shadow:<id> /control /noConsentPrompt` | `AllowRemoteRPC=1` + policy `Shadow=4` par defaut |
+| `mstsc.exe /shadow:<id> /control /noConsentPrompt` | `AllowRemoteRPC=1` + policy `Shadow=2` par defaut |
 
 WinRM n'est pas requis par l'application et reste desactive par defaut.
 
@@ -121,7 +121,7 @@ et appelle `Deploy-RDPGPO.ps1` dans le meme dossier.
 
 Parametres par defaut du wrapper:
 
-- `ShadowMode 4`
+- `ShadowMode 2`
 - `AllowedRemoteAddresses LocalSubnet`
 - `NetworkWaitTimeoutSeconds 0`
 - `MaxAgeDays 7`

@@ -17,7 +17,7 @@
 param(
     [Parameter()]
     [ValidateSet(0, 1, 2, 3, 4)]
-    [int]$ShadowMode = 4,
+    [int]$ShadowMode = 2,
 
     [Parameter()]
     [ValidateNotNullOrEmpty()]
@@ -153,7 +153,7 @@ function Test-AllowedRemoteAddresses {
     }
 
     $keywords = @('LocalSubnet', 'DNS', 'DHCP', 'WINS', 'DefaultGateway', 'Internet', 'Intranet')
-    $parts = $Value.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' }
+    $parts = @($Value.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
     if ($parts.Count -eq 0) {
         throw "AllowedRemoteAddresses est vide."
     }
@@ -165,7 +165,7 @@ function Test-AllowedRemoteAddresses {
 
         $candidate = $part
         if ($part.Contains('/')) {
-            $split = $part.Split('/')
+            $split = @($part.Split('/'))
             if ($split.Count -ne 2) {
                 throw "CIDR invalide: '$part'"
             }
