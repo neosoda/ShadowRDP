@@ -67,7 +67,7 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
-$script:ScriptVersion = '4.0.0'
+$script:ScriptVersion = '4.0.1'
 $script:StateRegPath = 'HKLM:\SOFTWARE\GrandEst\CMIL\RDPShadowDeploy'
 $script:EventSource = 'Deploy-RDPGPO'
 $script:Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -432,14 +432,14 @@ function Get-FirewallRulesByNamePattern {
         [string[]]$NamePatterns
     )
 
-    $rules = New-Object System.Collections.Generic.List[object]
+    $rulesByName = @{}
 
     foreach ($pattern in $NamePatterns) {
         try {
             $found = @(Get-NetFirewallRule -Name $pattern -ErrorAction SilentlyContinue)
             foreach ($rule in $found) {
-                if (-not ($rules | Where-Object { $_.Name -eq $rule.Name })) {
-                    $rules.Add($rule)
+                if (-not $rulesByName.ContainsKey($rule.Name)) {
+                    $rulesByName[$rule.Name] = $rule
                 }
             }
         }
@@ -448,7 +448,7 @@ function Get-FirewallRulesByNamePattern {
         }
     }
 
-    return @($rules)
+    return @($rulesByName.Values)
 }
 
 function Set-FirewallRules {
