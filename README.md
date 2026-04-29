@@ -119,6 +119,12 @@ Deploy-RDPGPO-Startup.cmd
 Le wrapper lance PowerShell en `-NoProfile -NonInteractive -ExecutionPolicy Bypass`
 et appelle `Deploy-RDPGPO.ps1` dans le meme dossier.
 
+Procedure detaillee:
+
+```text
+GPO-DEPLOYMENT.md
+```
+
 Parametres par defaut du wrapper:
 
 - `ShadowMode 2`
