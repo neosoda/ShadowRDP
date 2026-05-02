@@ -7,14 +7,19 @@
 #>
 
 # ============================================================================
-# AUTO-ELEVATION EN ADMINISTRATEUR
+# VERIFICATION DES DROITS ADMINISTRATEUR
 # ============================================================================
 $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
 if (-not $isAdmin) {
-    $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
-    Start-Process powershell.exe -ArgumentList $arguments -Verb RunAs
-    exit
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.MessageBox]::Show(
+        "Ce script doit être exécuté en tant qu'administrateur.`n`nUtilisez RemoteDesktopAssistant.cmd pour le lancer.",
+        "Droits insuffisants",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Warning
+    ) | Out-Null
+    exit 1
 }
 
 # ============================================================================
@@ -256,6 +261,23 @@ function Write-ScanLog {
         Add-Content -Path $logPath -Value $line -Encoding UTF8
     }
     catch {}
+}
+
+function Write-AuditLog {
+    param([string]$Action, [string]$Target = "")
+    try {
+        $operator = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        $line = "{0:yyyy-MM-dd HH:mm:ss} | {1} | {2} | {3} | {4}" -f (Get-Date), $operator, $env:COMPUTERNAME, $Action, $Target
+        $logPath = "C:\Windows\Logs\RemoteDesktopAssistant-audit.log"
+        Add-Content -Path $logPath -Value $line -Encoding UTF8
+    }
+    catch {
+        try {
+            $line = "{0:yyyy-MM-dd HH:mm:ss} | {1} | {2} | {3} | {4}" -f (Get-Date), $env:USERNAME, $env:COMPUTERNAME, $Action, $Target
+            Add-Content -Path (Join-Path $env:TEMP "RemoteDesktopAssistant-audit.log") -Value $line -Encoding UTF8
+        }
+        catch {}
+    }
 }
 
 # ============================================================================
@@ -732,6 +754,8 @@ $btnExportCsv = $window.FindName("btnExportCsv")
 
 $txtBadge.Text = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 
+Write-AuditLog -Action "DEMARRAGE"
+
 $lblSessionCount.Text = "En attente"
 $brdSessionsEmpty.Visibility = "Visible"
 $txtSessionsEmpty.Text = "Lancez une recherche pour afficher les sessions actives de la cible."
@@ -742,7 +766,7 @@ $Script:NetworkScanCancelled = $false
 $Script:NetworkScanTargets = @()
 $Script:NetworkScanLaunched = 0
 $Script:NetworkScanCompleted = 0
-$Script:NetworkScanBatchSize = 48
+$Script:NetworkScanBatchSize = 16
 $Script:PendingPings = [System.Collections.Generic.Dictionary[string, object]]::new()
 $Script:ScanObservable = New-Object System.Collections.ObjectModel.ObservableCollection[object]
 $Script:NetworkScanTimer = New-Object System.Windows.Threading.DispatcherTimer
@@ -865,7 +889,8 @@ $btnConnect.Add_Click({
             $Script:CurrentTarget = Resolve-ComputerNameToIP $comp
         
             $sessions = Get-RemoteUserSessions -ComputerName $Script:CurrentTarget
-        
+            Write-AuditLog -Action "SESSIONS_ENUM" -Target $Script:CurrentTarget
+
             if ($sessions.Count -eq 0) {
                 $lblStatus.Content = "Aucune session active. Utilisez 'RDP Classique'."
                 $brdStatus.Background = "#FFFF6B6B"
@@ -905,8 +930,9 @@ $btnClassicRDP.Add_Click({
         
             $lblStatus.Content = "Lancement RDP classique vers $comp..."
             [System.Windows.Forms.Application]::DoEvents()
-        
+
             $Script:CurrentTarget = Resolve-ComputerNameToIP $comp
+            Write-AuditLog -Action "RDP_CLASSIQUE" -Target $Script:CurrentTarget
             Start-ClassicRDP -ComputerTarget $Script:CurrentTarget
         
             $lblStatus.Content = "Prêt"
@@ -936,6 +962,7 @@ $dgSessions.Add_MouseDoubleClick({
             if ($confirm -eq 'No') { return }
         }
         try {
+            Write-AuditLog -Action "SHADOW_${mode}_DBLCLICK" -Target "$Script:CurrentTarget (SessionID=$($sel.ID), Utilisateur=$($sel.Utilisateur))"
             Start-ShadowSession -ComputerTarget $Script:CurrentTarget -SessionID $sel.ID -Mode $mode
             $lblStatus.Content = "Prêt"
             $brdStatus.Background = "#FF007ACC"
@@ -960,6 +987,7 @@ $btnLaunch.Add_Click({
         [System.Windows.Forms.Application]::DoEvents()
     
         try {
+            Write-AuditLog -Action "SHADOW_$mode" -Target "$Script:CurrentTarget (SessionID=$($sel.ID), Utilisateur=$($sel.Utilisateur))"
             Start-ShadowSession -ComputerTarget $Script:CurrentTarget -SessionID $sel.ID -Mode $mode
             $lblStatus.Content = "Prêt"
             $brdStatus.Background = "#FF007ACC"
@@ -988,6 +1016,7 @@ $btnScanNetwork.Add_Click({
             $pbNetworkScan.Maximum = $targets.Count
             $pbNetworkScan.Value = 0
             $lblNetworkScanProgress.Content = "Progression : 0/$($targets.Count)"
+            Write-AuditLog -Action "SCAN_RESEAU" -Target "$cidr ($($targets.Count) hotes)"
             $lblStatus.Content = "Scan réseau en cours sur $cidr..."
             $brdStatus.Background = "#FFFF9800"
             $Script:NetworkScanTargets = $targets

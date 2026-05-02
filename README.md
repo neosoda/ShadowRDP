@@ -23,6 +23,7 @@
 - [Démarrage rapide](#demarrage-rapide)
 - [Déploiement GPO (startup)](#deploiement-gpo-startup)
 - [Scan réseau (CIDR)](#scan-reseau-cidr)
+- [EDR et faux positifs](#edr-et-faux-positifs)
 - [Prérequis](#prerequis)
 - [Tests et vérifications](#tests-et-verifications)
 - [Bonnes pratiques](#bonnes-pratiques)
@@ -132,6 +133,12 @@ SHADOW RDP/
 
 ### Assistant opérateur
 
+```text
+RemoteDesktopAssistant.cmd   ← double-cliquer (élévation gérée par le wrapper)
+```
+
+Ou en ligne de commande :
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\RemoteDesktopAssistantV1.4.ps1
 ```
@@ -228,6 +235,69 @@ Comportement:
 - Le bouton `Exporter CSV` sauvegarde les résultats via une boîte de dialogue native
 - Le bouton `Utiliser la sélection` copie l'IP vers l'Assistant RDP et bascule l'onglet automatiquement
 - Journalisation des erreurs scan dans `%TEMP%\RemoteDesktopAssistant-scan.log`
+
+---
+
+## EDR et faux positifs
+
+Ce toolkit manipule des primitives surveillées par les EDR (RDP shadow, énumération de sessions distantes, scan réseau). Des alertes de type _suspicious PowerShell_ ou _network reconnaissance_ sont possibles selon la politique de l'EDR. Les mesures ci-dessous réduisent significativement l'exposition.
+
+### Signaux déclencheurs connus
+
+| Signal | Règle type | Mitigation |
+|---|---|---|
+| `powershell.exe` se re-spawn avec `-Verb RunAs` | `proc_creation_win_powershell_privilege_escalation` | Utiliser `RemoteDesktopAssistant.cmd` (élévation portée par `cmd.exe`) |
+| `-ExecutionPolicy Bypass` dans les args d'un processus enfant | `proc_creation_win_powershell_exec_bypass` | Idem — le Bypass reste dans le `.cmd`, pas dans le `.ps1` |
+| Pings ICMP en masse (16+ simultanés) | `net_connection_win_susp_mass_icmp` | Batch limité à 16 — réduire si nécessaire via `$Script:NetworkScanBatchSize` |
+| `qwinsta.exe /server:<remote>` | `proc_creation_win_qwinsta_remote` | Inhérent à la fonction — justifié par le contexte support |
+| `mstsc.exe /shadow /noConsentPrompt` | `proc_creation_win_mstsc_shadow_noconsent` | Inhérent — à whitelister après validation RSSI |
+| Script PS non signé exécuté avec Bypass | Heuristique générique | **Signer le script** avec le CA interne (voir ci-dessous) |
+
+### Démarrage sécurisé : utiliser le wrapper CMD
+
+```text
+RemoteDesktopAssistant.cmd   ← double-cliquer ici (ou raccourci Admin)
+```
+
+Ce wrapper élève via `cmd.exe → ShellExecute runas` plutôt que `powershell.exe → powershell.exe`. La chaîne de processus résultante est moins ambiguë pour un EDR.
+
+### Signature Authenticode (recommandé)
+
+Signer le script avec un certificat de code de la PKI interne élimine les alertes heuristiques sur les scripts non signés :
+
+```powershell
+# Récupérer le certificat de signature de code (PKI interne)
+$cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Select-Object -First 1
+
+# Signer le script
+Set-AuthenticodeSignature -FilePath .\RemoteDesktopAssistantV1.4.ps1 -Certificate $cert -TimestampServer "http://timestamp.votredomaine.local"
+
+# Vérifier
+Get-AuthenticodeSignature .\RemoteDesktopAssistantV1.4.ps1
+```
+
+Une fois signé, passer la politique d'exécution de `Bypass` à `AllSigned` dans le wrapper.
+
+### Traçabilité opérateur (audit log)
+
+Chaque action sensible est journalisée dans `C:\Windows\Logs\RemoteDesktopAssistant-audit.log` :
+
+```text
+2026-05-02 14:23:11 | DOMAINE\jdupont | PC-SUPPORT | DEMARRAGE         |
+2026-05-02 14:23:18 | DOMAINE\jdupont | PC-SUPPORT | SESSIONS_ENUM     | 192.168.1.45
+2026-05-02 14:23:21 | DOMAINE\jdupont | PC-SUPPORT | SHADOW_NoConsent  | 192.168.1.45 (SessionID=2, Utilisateur=jmartin)
+```
+
+Ce log constitue la preuve d'usage légitime lors d'une investigation SOC.
+
+### Exclusion HarfangLab
+
+Après signature et validation RSSI, ajouter une exclusion basée sur le hash SHA-256 du script ou sur la signature Authenticode dans la console HarfangLab (**Politique > Exclusions > Processus**).
+
+```powershell
+# Obtenir le hash pour l'exclusion
+Get-FileHash .\RemoteDesktopAssistantV1.4.ps1 -Algorithm SHA256
+```
 
 ---
 
