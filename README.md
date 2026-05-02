@@ -85,11 +85,27 @@ SHADOW RDP/
 
 ## Fonctionnalités
 
+**Assistant opérateur**
+
 - Assistance RDP Shadow (visualisation, contrôle, no-consent)
+- Double-clic sur une session pour lancer Shadow directement
 - Lancement RDP classique
-- Scan réseau en onglet dédié (IP + nom d'hôte)
-- Progression temps réel + annulation de scan
-- Déploiement GPO idempotent avec marqueur de version
+- Badge opérateur dynamique (`DOMAINE\utilisateur` connecté)
+- Tri des colonnes dans les tableaux de sessions et de scan
+
+**Scan réseau**
+
+- Scan parallèle (`PingAsync` × 48) — /24 en ~6 s au lieu de ~200 s
+- Résultats affichés en temps réel au fur et à mesure de la détection
+- Annulation propre avec libération des ressources réseau
+- Export CSV des résultats via boîte de dialogue native
+- Bascule automatique vers l'onglet Assistant RDP après « Utiliser la sélection »
+- Touche Entrée sur le champ CIDR pour lancer le scan
+- Journalisation des erreurs dans `%TEMP%\RemoteDesktopAssistant-scan.log`
+
+**Déploiement GPO**
+
+- Script idempotent avec marqueur de version
 - Wrapper `.cmd` pour forcer `ExecutionPolicy Bypass` uniquement au lancement
 - Mode audit `-WhatIf` et mode retrait `-Uninstall`
 - WinRM optionnel via `-EnableWinRM`
@@ -205,9 +221,12 @@ Exemples:
 
 Comportement:
 
-- Le scan teste les hôtes utilisables du réseau
-- La fenêtre reste réactive (scan non bloquant via `DispatcherTimer`)
-- Le bouton `Annuler` interrompt proprement le scan en cours
+- Le scan teste les hôtes utilisables du réseau via **48 pings asynchrones en parallèle**
+- La fenêtre reste réactive (scan non bloquant via `DispatcherTimer` + `PingAsync`)
+- Les hôtes en ligne apparaissent **en temps réel** dans le tableau
+- Le bouton `Annuler` interrompt proprement le scan en cours et libère les ressources
+- Le bouton `Exporter CSV` sauvegarde les résultats via une boîte de dialogue native
+- Le bouton `Utiliser la sélection` copie l'IP vers l'Assistant RDP et bascule l'onglet automatiquement
 - Journalisation des erreurs scan dans `%TEMP%\RemoteDesktopAssistant-scan.log`
 
 ---

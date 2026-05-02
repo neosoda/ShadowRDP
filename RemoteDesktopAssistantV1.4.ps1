@@ -507,14 +507,14 @@ $xaml = @"
                     <Border Grid.Column="1" Background="#183B56" BorderBrush="#3ABFF8" BorderThickness="1" CornerRadius="20" Padding="14,8" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="8" Height="8" Fill="{StaticResource Success}" Margin="0,0,8,0"/>
-                            <TextBlock Text="Domaine + Admin" Foreground="#DDF7FF" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock Name="txtBadge" Text="Chargement..." Foreground="#DDF7FF" FontWeight="SemiBold" FontSize="13"/>
                         </StackPanel>
                     </Border>
                 </Grid>
             </Border>
 
-            <TabControl Grid.Row="1" Margin="24,0,24,0">
-                <TabItem Header="Assistant RDP">
+            <TabControl Name="tabControlMain" Grid.Row="1" Margin="24,0,24,0">
+                <TabItem Name="tabItemRDP" Header="Assistant RDP">
                     <ScrollViewer Margin="0,18,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <Grid MinHeight="500">
                             <Grid.RowDefinitions>
@@ -573,7 +573,7 @@ $xaml = @"
 
                                     <Border Grid.Row="1" Background="#0B1322" BorderBrush="{StaticResource Stroke}" BorderThickness="1" CornerRadius="15" Padding="1">
                                         <Grid>
-                                            <DataGrid Name="dgSessions" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="170">
+                                            <DataGrid Name="dgSessions" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="170" CanUserSortColumns="True">
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="Session" Binding="{Binding SessionName}" Width="1.3*"/>
                                                     <DataGridTextColumn Header="Utilisateur" Binding="{Binding Utilisateur}" Width="2*"/>
@@ -616,7 +616,7 @@ $xaml = @"
                     </ScrollViewer>
                 </TabItem>
 
-                <TabItem Header="Scan réseau">
+                <TabItem Name="tabItemScan" Header="Scan réseau">
                     <ScrollViewer Margin="0,18,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <Grid MinHeight="500">
                         <Grid.RowDefinitions>
@@ -642,7 +642,8 @@ $xaml = @"
                                 <Button Name="btnScanNetwork" Grid.Column="1" Content="Scanner" Background="{StaticResource AccentStrong}" Margin="0,31,10,0"/>
                                 <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,31,0,0">
                                     <Button Name="btnCancelScanNetwork" Content="Annuler" Background="{StaticResource Danger}" Margin="0,0,10,0" IsEnabled="False"/>
-                                    <Button Name="btnUseSelectedHost" Content="Utiliser la sélection" Background="{StaticResource Success}"/>
+                                    <Button Name="btnExportCsv" Content="Exporter CSV" Background="#334155" Margin="0,0,10,0" ToolTip="Exporter les résultats du scan en CSV"/>
+                                    <Button Name="btnUseSelectedHost" Content="Utiliser la sélection" Background="{StaticResource Success}" ToolTip="Copier l'IP sélectionnée vers l'onglet Assistant RDP"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -659,7 +660,7 @@ $xaml = @"
                                         <TextBlock Text="ping + DNS" Foreground="#BBF7D0" FontSize="11" FontWeight="SemiBold"/>
                                     </Border>
                                 </StackPanel>
-                                <DataGrid Name="dgNetworkScan" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True">
+                                <DataGrid Name="dgNetworkScan" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" CanUserSortColumns="True">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="IP" Binding="{Binding IPAddress}" Width="190"/>
                                         <DataGridTextColumn Header="Nom d'hôte" Binding="{Binding HostName}" Width="*"/>
@@ -723,6 +724,13 @@ $pbNetworkScan = $window.FindName("pbNetworkScan")
 $lblNetworkScanProgress = $window.FindName("lblNetworkScanProgress")
 $lblStatus = $window.FindName("lblStatus")
 $brdStatus = $window.FindName("brdStatus")
+$tabControlMain = $window.FindName("tabControlMain")
+$tabItemRDP = $window.FindName("tabItemRDP")
+$tabItemScan = $window.FindName("tabItemScan")
+$txtBadge = $window.FindName("txtBadge")
+$btnExportCsv = $window.FindName("btnExportCsv")
+
+$txtBadge.Text = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 
 $lblSessionCount.Text = "En attente"
 $brdSessionsEmpty.Visibility = "Visible"
@@ -732,10 +740,13 @@ $Script:CurrentTarget = ""
 $Script:NetworkScanInProgress = $false
 $Script:NetworkScanCancelled = $false
 $Script:NetworkScanTargets = @()
-$Script:NetworkScanIndex = 0
-$Script:NetworkScanResults = New-Object System.Collections.Generic.List[object]
+$Script:NetworkScanLaunched = 0
+$Script:NetworkScanCompleted = 0
+$Script:NetworkScanBatchSize = 48
+$Script:PendingPings = [System.Collections.Generic.Dictionary[string, object]]::new()
+$Script:ScanObservable = New-Object System.Collections.ObjectModel.ObservableCollection[object]
 $Script:NetworkScanTimer = New-Object System.Windows.Threading.DispatcherTimer
-$Script:NetworkScanTimer.Interval = [TimeSpan]::FromMilliseconds(50)
+$Script:NetworkScanTimer.Interval = [TimeSpan]::FromMilliseconds(80)
 
 $Script:NetworkScanTimer.Add_Tick({
         if (-not $Script:NetworkScanInProgress) {
@@ -745,63 +756,72 @@ $Script:NetworkScanTimer.Add_Tick({
 
         try {
             $total = $Script:NetworkScanTargets.Count
+
             if ($Script:NetworkScanCancelled) {
+                foreach ($entry in @($Script:PendingPings.Values)) {
+                    try { $entry.Ping.Dispose() } catch {}
+                }
+                $Script:PendingPings.Clear()
                 $Script:NetworkScanTimer.Stop()
                 $Script:NetworkScanInProgress = $false
                 $btnScanNetwork.IsEnabled = $true
                 $btnCancelScanNetwork.IsEnabled = $false
                 $txtSubnetBase.IsEnabled = $true
-                $lblStatus.Content = "Scan annule par l'utilisateur."
+                $lblStatus.Content = "Scan annulé par l'utilisateur ($($Script:ScanObservable.Count) hôte(s) trouvé(s))."
                 $brdStatus.Background = "#FF007ACC"
                 return
             }
 
-            if ($Script:NetworkScanIndex -ge $total) {
+            # Lancer de nouveaux pings async jusqu'à remplir le batch
+            while ($Script:PendingPings.Count -lt $Script:NetworkScanBatchSize -and $Script:NetworkScanLaunched -lt $total) {
+                $ip = $Script:NetworkScanTargets[$Script:NetworkScanLaunched]
+                $ping = New-Object System.Net.NetworkInformation.Ping
+                $task = $ping.SendPingAsync($ip, 1000)
+                $Script:PendingPings[$ip] = [PSCustomObject]@{ Ping = $ping; Task = $task }
+                $Script:NetworkScanLaunched++
+            }
+
+            # Récolter les tâches terminées (snapshot des clés pour éviter modification pendant l'itération)
+            foreach ($ip in @($Script:PendingPings.Keys)) {
+                $entry = $Script:PendingPings[$ip]
+                if ($entry.Task.IsCompleted) {
+                    [void]$Script:PendingPings.Remove($ip)
+                    $Script:NetworkScanCompleted++
+
+                    $isOnline = $false
+                    if (-not $entry.Task.IsFaulted -and -not $entry.Task.IsCanceled) {
+                        try { $isOnline = ($entry.Task.Result.Status -eq 'Success') } catch {}
+                    }
+                    try { $entry.Ping.Dispose() } catch {}
+
+                    if ($isOnline) {
+                        $hostName = "-"
+                        try { $hostName = [System.Net.Dns]::GetHostEntry($ip).HostName } catch {}
+                        $Script:ScanObservable.Add([PSCustomObject]@{
+                                IPAddress = $ip
+                                HostName  = $hostName
+                                Status    = "En ligne"
+                            })
+                    }
+                }
+            }
+
+            $pbNetworkScan.Value = $Script:NetworkScanCompleted
+            $lblNetworkScanProgress.Content = "Progression : $($Script:NetworkScanCompleted)/$total"
+            $lblStatus.Content = "Scan réseau : $($Script:NetworkScanCompleted)/$total — $($Script:ScanObservable.Count) en ligne"
+            $brdStatus.Background = "#FFFF9800"
+
+            if ($Script:NetworkScanCompleted -ge $total -and $Script:PendingPings.Count -eq 0) {
                 $Script:NetworkScanTimer.Stop()
                 $Script:NetworkScanInProgress = $false
                 $btnScanNetwork.IsEnabled = $true
                 $btnCancelScanNetwork.IsEnabled = $false
                 $txtSubnetBase.IsEnabled = $true
-
-                $orderedResults = $Script:NetworkScanResults | Sort-Object IPAddress
-                $dgNetworkScan.ItemsSource = $orderedResults
-                $lblStatus.Content = "Scan terminé : $($Script:NetworkScanResults.Count) hôte(s) en ligne."
+                $lblStatus.Content = "Scan terminé : $($Script:ScanObservable.Count) hôte(s) en ligne sur $total."
                 $brdStatus.Background = "#FF4CAF50"
                 $lblNetworkScanProgress.Content = "Progression : $total/$total"
                 $pbNetworkScan.Value = $total
-                return
             }
-
-            $ip = $Script:NetworkScanTargets[$Script:NetworkScanIndex]
-            $isOnline = $false
-            try {
-                $isOnline = (New-Object System.Net.NetworkInformation.Ping).Send($ip, 800).Status -eq "Success"
-            }
-            catch {
-                $isOnline = $false
-            }
-
-            if ($isOnline) {
-                $hostName = "-"
-                try {
-                    $hostName = [System.Net.Dns]::GetHostEntry($ip).HostName
-                }
-                catch {
-                    $hostName = "-"
-                }
-
-                $Script:NetworkScanResults.Add([PSCustomObject]@{
-                        IPAddress = $ip
-                        HostName  = $hostName
-                        Status    = "En ligne"
-                    })
-            }
-
-            $Script:NetworkScanIndex++
-            $pbNetworkScan.Value = $Script:NetworkScanIndex
-            $lblNetworkScanProgress.Content = "Progression : $($Script:NetworkScanIndex)/$total"
-            $lblStatus.Content = "Scan reseau : $($Script:NetworkScanIndex)/$total"
-            $brdStatus.Background = "#FFFF9800"
         }
         catch {
             $detail = Get-ExceptionText -ErrorObject $_
@@ -903,8 +923,26 @@ $txtComputerName.Add_KeyDown({
         }
     })
 
-$dgSessions.Add_SelectionChanged({ 
-        $btnLaunch.IsEnabled = ($dgSessions.SelectedItem -ne $null) 
+$dgSessions.Add_SelectionChanged({
+        $btnLaunch.IsEnabled = ($dgSessions.SelectedItem -ne $null)
+    })
+
+$dgSessions.Add_MouseDoubleClick({
+        $sel = $dgSessions.SelectedItem
+        if ($null -eq $sel) { return }
+        $mode = if ($rbView.IsChecked) { 'View' } elseif ($rbControl.IsChecked) { 'Control' } else { 'NoConsent' }
+        if ($mode -eq 'NoConsent') {
+            $confirm = [System.Windows.MessageBox]::Show([string]"Prendre le contrôle forcé sans le consentement de l'utilisateur ?", "Avertissement", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Warning)
+            if ($confirm -eq 'No') { return }
+        }
+        try {
+            Start-ShadowSession -ComputerTarget $Script:CurrentTarget -SessionID $sel.ID -Mode $mode
+            $lblStatus.Content = "Prêt"
+            $brdStatus.Background = "#FF007ACC"
+        }
+        catch {
+            [System.Windows.MessageBox]::Show([string]"Erreur : $($_.Exception.Message)", "Erreur", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
+        }
     })
 
 $btnLaunch.Add_Click({
@@ -947,15 +985,17 @@ $btnScanNetwork.Add_Click({
             $btnScanNetwork.IsEnabled = $false
             $btnCancelScanNetwork.IsEnabled = $true
             $txtSubnetBase.IsEnabled = $false
-            $dgNetworkScan.ItemsSource = $null
             $pbNetworkScan.Maximum = $targets.Count
             $pbNetworkScan.Value = 0
             $lblNetworkScanProgress.Content = "Progression : 0/$($targets.Count)"
-            $lblStatus.Content = "Scan reseau en cours sur $cidr..."
+            $lblStatus.Content = "Scan réseau en cours sur $cidr..."
             $brdStatus.Background = "#FFFF9800"
             $Script:NetworkScanTargets = $targets
-            $Script:NetworkScanIndex = 0
-            $Script:NetworkScanResults = New-Object System.Collections.Generic.List[object]
+            $Script:NetworkScanLaunched = 0
+            $Script:NetworkScanCompleted = 0
+            $Script:PendingPings = [System.Collections.Generic.Dictionary[string, object]]::new()
+            $Script:ScanObservable = New-Object System.Collections.ObjectModel.ObservableCollection[object]
+            $dgNetworkScan.ItemsSource = $Script:ScanObservable
             $Script:NetworkScanCancelled = $false
             $Script:NetworkScanInProgress = $true
             $Script:NetworkScanTimer.Start()
@@ -984,10 +1024,37 @@ $btnUseSelectedHost.Add_Click({
             [System.Windows.MessageBox]::Show([string]"Sélectionnez un hôte dans les résultats du scan.", "Information", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
             return
         }
-
         $txtComputerName.Text = $selectedHost.IPAddress
+        $tabControlMain.SelectedItem = $tabItemRDP
         $lblStatus.Content = "Cible RDP mise à jour avec $($selectedHost.IPAddress)."
         $brdStatus.Background = "#FF007ACC"
+    })
+
+$btnExportCsv.Add_Click({
+        if ($Script:ScanObservable.Count -eq 0) {
+            [System.Windows.MessageBox]::Show([string]"Aucun résultat à exporter. Lancez d'abord un scan.", "Information", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
+            return
+        }
+        $dialog = New-Object Microsoft.Win32.SaveFileDialog
+        $dialog.Filter = "CSV (*.csv)|*.csv"
+        $dialog.FileName = "scan_reseau_$(Get-Date -Format 'yyyyMMdd_HHmmss').csv"
+        $dialog.Title = "Exporter les résultats du scan"
+        if ($dialog.ShowDialog() -eq $true) {
+            try {
+                $Script:ScanObservable | Export-Csv -Path $dialog.FileName -NoTypeInformation -Encoding UTF8
+                $lblStatus.Content = "Export CSV enregistré : $($dialog.FileName)"
+                $brdStatus.Background = "#FF4CAF50"
+            }
+            catch {
+                [System.Windows.MessageBox]::Show([string]"Erreur lors de l'export : $($_.Exception.Message)", "Erreur", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
+            }
+        }
+    })
+
+$txtSubnetBase.Add_KeyDown({
+        if ($_.Key -eq 'Return') {
+            $btnScanNetwork.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Button]::ClickEvent)))
+        }
     })
 
 # ============================================================================
