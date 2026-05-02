@@ -64,17 +64,18 @@ En cas de doute, suspendre l'usage et valider avec le RSSI/équipe sécurité av
 
 | Module | Fichier principal | Objectif |
 |---|---|---|
-| Déploiement | `Deploy-RDPGPO-Startup.cmd` -> `Deploy-RDPGPO.ps1` | Configure RDP, Shadow, RemoteRegistry et pare-feu |
-| Assistant | `RemoteDesktopAssistantV1.4.ps1` | UI opérateur: sessions Shadow + scan réseau |
+| Déploiement | `Deploy-RDPGPO-Startup.cmd` → `Deploy-RDPGPO.ps1` | Configure RDP, Shadow, RemoteRegistry et pare-feu |
+| Assistant | `RemoteDesktopAssistant.cmd` → `RemoteDesktopAssistantV1.4.ps1` | UI opérateur : sessions Shadow + scan réseau |
 
 <details>
 <summary><strong>Arborescence du projet</strong></summary>
 
 ```text
 SHADOW RDP/
+|- RemoteDesktopAssistant.cmd          ← lanceur (élévation + appel du .ps1)
+|- RemoteDesktopAssistantV1.4.ps1
 |- Deploy-RDPGPO-Startup.cmd
 |- Deploy-RDPGPO.ps1
-|- RemoteDesktopAssistantV1.4.ps1
 |- GPO-DEPLOYMENT.md
 |- README.md
 |- _OLD/
@@ -96,7 +97,7 @@ SHADOW RDP/
 
 **Scan réseau**
 
-- Scan parallèle (`PingAsync` × 48) — /24 en ~6 s au lieu de ~200 s
+- Scan parallèle (`PingAsync` × 16) — /24 en ~16 s au lieu de ~200 s
 - Résultats affichés en temps réel au fur et à mesure de la détection
 - Annulation propre avec libération des ressources réseau
 - Export CSV des résultats via boîte de dialogue native
@@ -228,7 +229,7 @@ Exemples:
 
 Comportement:
 
-- Le scan teste les hôtes utilisables du réseau via **48 pings asynchrones en parallèle**
+- Le scan teste les hôtes utilisables du réseau via **16 pings asynchrones en parallèle**
 - La fenêtre reste réactive (scan non bloquant via `DispatcherTimer` + `PingAsync`)
 - Les hôtes en ligne apparaissent **en temps réel** dans le tableau
 - Le bouton `Annuler` interrompt proprement le scan en cours et libère les ressources
