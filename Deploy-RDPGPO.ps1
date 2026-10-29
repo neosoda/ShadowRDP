@@ -58,6 +58,9 @@ param(
     [switch]$EnableWinRM,
 
     [Parameter()]
+    [switch]$EnableExtendedFirewallRules,
+
+    [Parameter()]
     [switch]$Uninstall,
 
     [Parameter()]
@@ -270,6 +273,9 @@ function Test-AlreadyApplied {
         if ([int]$state.EnableWinRM -ne [int]$EnableWinRM.IsPresent) {
             return $false
         }
+        if ([int]$state.EnableExtendedFirewallRules -ne [int]$EnableExtendedFirewallRules.IsPresent) {
+            return $false
+        }
 
         $lastSuccess = [DateTime]::Parse($state.LastSuccess)
         if (((Get-Date) - $lastSuccess).TotalDays -lt $MaxAgeDays) {
@@ -305,6 +311,7 @@ function Set-DeploymentState {
         Set-ItemProperty -Path $script:StateRegPath -Name 'ShadowMode' -Value $ShadowMode -Type DWord
         Set-ItemProperty -Path $script:StateRegPath -Name 'AllowedRemoteAddresses' -Value $AllowedRemoteAddresses -Type String
         Set-ItemProperty -Path $script:StateRegPath -Name 'EnableWinRM' -Value ([int]$EnableWinRM.IsPresent) -Type DWord
+        Set-ItemProperty -Path $script:StateRegPath -Name 'EnableExtendedFirewallRules' -Value ([int]$EnableExtendedFirewallRules.IsPresent) -Type DWord
 
         if ($Status -eq 'Success') {
             Set-ItemProperty -Path $script:StateRegPath -Name 'LastSuccess' -Value (Get-Date -Format 's') -Type String
@@ -739,11 +746,12 @@ function Invoke-Install {
         $patterns = @(
             'RemoteDesktop-*',
             'RemoteSvc*',
-            'RemoteEventLog*',
-            'WMI-*',
-            'FPS-SMB-In*',
             'FPS-ICMP4-ERQ-In*'
         )
+
+        if ($EnableExtendedFirewallRules) {
+            $patterns += @('RemoteEventLog*', 'WMI-*', 'FPS-SMB-In*')
+        }
 
         if ($EnableWinRM) {
             $patterns += 'WINRM-*'
