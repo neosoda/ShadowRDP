@@ -63,7 +63,7 @@ Le wrapper execute:
 
 ```cmd
 Deploy-RDPGPO.ps1 ^
-  -ShadowMode 3 ^
+  -ShadowMode 1 ^
   -AllowedRemoteAddresses "LocalSubnet" ^
   -NetworkWaitTimeoutSeconds 0 ^
   -NetworkRetryIntervalSeconds 5 ^
@@ -74,7 +74,7 @@ Effet:
 
 - RDP active.
 - NLA active.
-- Shadow RDP autorise en controle **avec consentement** (mode 3). Le mode 2 sans consentement exige une configuration explicite et une autorisation de la DSI.
+- Shadow RDP autorise en controle **avec consentement** (mode 1). Le mode 2 sans consentement exige une configuration explicite et une autorisation de la DSI.
 - `qwinsta /server:<poste>` rendu possible.
 - Ping entrant autorise pour le scan reseau.
 - Pare-feu limite a `LocalSubnet`.
@@ -139,7 +139,7 @@ Valeurs attendues:
 fDenyTSConnections = 0
 AllowRemoteRPC     = 1
 UserAuthentication = 1
-Shadow             = 3
+Shadow             = 1
 ```
 
 Verifier les services:
@@ -212,7 +212,7 @@ Si `qwinsta /server:<poste>` echoue:
 
 Si le Shadow affiche une erreur de strategie de groupe:
 
-- verifier que `Shadow=3` (ou `2` si derogation explicite);
+- verifier que `Shadow=1` (ou `2` si derogation explicite);
 - verifier qu'aucune autre GPO ne remet une valeur differente;
 - lancer `gpresult /h C:\Temp\gpresult.html` sur le poste cible.
 
