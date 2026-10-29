@@ -23,13 +23,23 @@ $xamlMatch = [regex]::Match($uiText, '(?s)\$xaml = @"\r?\n(?<xaml>.*?)\r?\n"@')
 Assert-True $xamlMatch.Success 'WPF XAML found'
 [xml]$xaml = $xamlMatch.Groups['xaml'].Value
 Assert-True ($xaml.DocumentElement.LocalName -eq 'Window') 'WPF XAML is well-formed'
-foreach ($name in @('txtComputerName', 'btnConnect', 'btnClassicRDP', 'btnDiagnose', 'btnFavorite', 'cbFavorites', 'dgSessions', 'dgNetworkScan')) {
+Add-Type -AssemblyName PresentationFramework
+$reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlMatch.Groups['xaml'].Value))
+try {
+    $window = [Windows.Markup.XamlReader]::Load($reader)
+    Assert-True ($null -ne $window) 'WPF XAML loads into real Windows controls'
+}
+finally {
+    $reader.Dispose()
+    if ($null -ne $window) { $window.Close() }
+}
+foreach ($name in @('txtComputerName', 'btnConnect', 'btnClassicRDP', 'btnDiagnose', 'btnADSearch', 'btnFavorite', 'cbFavorites', 'dgSessions', 'dgNetworkScan')) {
     Assert-True ($uiText.Contains('Name="' + $name + '"')) "WPF control $name"
 }
 $tokens = $null
 $errors = $null
 $uiAst = [System.Management.Automation.Language.Parser]::ParseFile($uiFile, [ref]$tokens, [ref]$errors)
-foreach ($name in @('Convert-IPToUInt32', 'Convert-UInt32ToIP', 'Get-NetworkScanTargets', 'Assert-ComputerTarget')) {
+foreach ($name in @('Convert-IPToUInt32', 'Convert-UInt32ToIP', 'Get-NetworkScanTargets', 'Assert-ComputerTarget', 'Find-DirectoryComputers')) {
     $node = $uiAst.Find({ param($x)
         $x -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $x.Name -eq $name
     }, $true)
