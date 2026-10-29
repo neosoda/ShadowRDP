@@ -621,10 +621,27 @@ function Restore-DeploymentBackup {
         }
     }
 
+    $deploymentState = Get-DeploymentState
+    $appliedAddresses = if ($null -ne $deploymentState -and $deploymentState.AllowedRemoteAddresses) {
+        @($deploymentState.AllowedRemoteAddresses.Split(',') | ForEach-Object { $_.Trim() } | Sort-Object)
+    } else { @() }
     foreach ($ruleState in @($backup.Firewall)) {
         $rule = Get-NetFirewallRule -Name $ruleState.Name -ErrorAction SilentlyContinue
         if ($null -eq $rule) {
             Write-DeployLog "Regle inexistante, restauration ignoree: $($ruleState.Name)" 'WARN'
+            continue
+        }
+        $currentFilter = Get-NetFirewallAddressFilter -AssociatedNetFirewallRule $rule -ErrorAction Stop
+        $originalAddresses = @($ruleState.RemoteAddress | Sort-Object)
+        $currentAddresses = @($currentFilter.RemoteAddress | Sort-Object)
+        if ($rule.Enabled -eq $ruleState.Enabled -and
+            ($originalAddresses -join '|') -eq ($currentAddresses -join '|')) {
+            continue
+        }
+        # Do not overwrite policies changed by another administrator after deployment.
+        if ($appliedAddresses.Count -eq 0 -or $rule.Enabled -ne 'True' -or
+            ($appliedAddresses -join '|') -ne ($currentAddresses -join '|')) {
+            Write-DeployLog "Regle modifiee depuis le deploiement; restauration ignoree: $($ruleState.Name)" 'WARN'
             continue
         }
         if ($PSCmdlet.ShouldProcess($ruleState.Name, 'Restore original firewall rule')) {
