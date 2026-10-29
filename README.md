@@ -187,7 +187,7 @@ Le wrapper lance PowerShell en `-NoProfile -NonInteractive -ExecutionPolicy Bypa
 
 | Paramètre | Valeur par défaut |
 |---|---|
-| `ShadowMode` | `3` (contrôle avec consentement) |
+| `ShadowMode` | `1` (contrôle avec consentement) |
 | `AllowedRemoteAddresses` | `LocalSubnet` |
 | `NetworkWaitTimeoutSeconds` | `0` |
 | `MaxAgeDays` | `0` (contrôle à chaque exécution) |
@@ -220,7 +220,7 @@ Documentation détaillée : [`GPO-DEPLOYMENT.md`](GPO-DEPLOYMENT.md)
 | Ping / scan réseau | Règle pare-feu `FPS-ICMP4-ERQ-In*` |
 | `qwinsta.exe /server:<poste>` | `RemoteRegistry` démarré + règles `RemoteSvc*`, `RemoteEventLog*`, `WMI-*`, `FPS-SMB-In*` |
 | `mstsc.exe /v:<poste>` | RDP activé + règles `RemoteDesktop-*` |
-| `mstsc.exe /shadow` | `AllowRemoteRPC=1` + policy `Shadow=3` par défaut (avec consentement) |
+| `mstsc.exe /shadow` | `AllowRemoteRPC=1` + policy `Shadow=1` par défaut (avec consentement) |
 | `mstsc.exe /shadow /noConsentPrompt` | Exige une configuration explicite `-ShadowMode 2`, autorisée par la DSI |
 
 > [!NOTE]
@@ -315,7 +315,7 @@ Get-FileHash .\RemoteDesktopAssistantV1.4.ps1 -Algorithm SHA256
 - **Favoris et historique** : stockage dans `%LOCALAPPDATA%\ShadowRDP\preferences.json`.
 - **Sessions** : timeout effectif de 5 secondes pour `qwinsta`, sortie et erreurs drainées sans interblocage.
 - **Scanner** : CIDR bornés à 1 024 adresses, DNS inverse asynchrone.
-- **Déploiement** : consentement requis par défaut (`ShadowMode=3`), sauvegarde et restauration de la configuration machine.
+- **Déploiement** : consentement requis par défaut (`ShadowMode=1`), sauvegarde et restauration de la configuration machine.
 - **CI** : analyse syntaxique PowerShell, validation XAML et tests CIDR sous Windows.
 
 > **Attention :** les fonctions GUI et GPO doivent être validées sur un poste Windows et une OU pilote avant déploiement large. La CI n'effectue pas de session Shadow réelle.
