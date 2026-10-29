@@ -656,6 +656,11 @@ function Restore-DeploymentBackup {
     }
 
     foreach ($item in @($backup.Services)) {
+        # Never interrupt WinRM unless this deployment had opted in to manage it.
+        if ($item.Name -eq 'WinRM' -and
+            ($null -eq $deploymentState -or [int]$deploymentState.EnableWinRM -ne 1)) {
+            continue
+        }
         $startup = switch ($item.StartMode) {
             'Auto' { 'Automatic' }
             'Manual' { 'Manual' }
@@ -668,7 +673,8 @@ function Restore-DeploymentBackup {
         if ($item.State -eq 'Running' -and $current.Status -ne 'Running') {
             Set-ServiceSafe -Name $item.Name -StartupType $startup -Start
         }
-        elseif ($item.State -eq 'Stopped' -and $current.Status -eq 'Running') {
+        elseif ($item.State -eq 'Stopped' -and $current.Status -eq 'Running' -and
+            $item.Name -in @('RemoteRegistry', 'WinRM')) {
             Set-ServiceSafe -Name $item.Name -StartupType $startup -Stop
         }
     }
