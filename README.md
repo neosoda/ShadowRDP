@@ -1,374 +1,247 @@
 <div align="center">
 
-<img src="public/Capture1.png" alt="Remote Desktop Assistant — interface principale" width="820"/>
-
-<br/><br/>
-
-# ShadowRDP
-
-Toolkit PowerShell pour l'**assistance RDP Shadow** et le **déploiement GPO**  
-en environnement Active Directory Windows.
+<img src="public/hero.svg" alt="ShadowRDP — console d'assistance distante Windows" width="100%"/>
 
 <br/>
 
-[![PowerShell](https://img.shields.io/badge/PowerShell-5.1+-5391FE?style=for-the-badge&logo=powershell&logoColor=white)](#prerequis)
-[![Windows](https://img.shields.io/badge/Windows-10%20|%2011%20|%20Server-0078D4?style=for-the-badge&logo=windows&logoColor=white)](#prerequis)
-[![Type](https://img.shields.io/badge/Usage-Administration%20RDP-0A7E8C?style=for-the-badge)](#fonctionnalites)
-[![État](https://img.shields.io/badge/État-Production-22C55E?style=for-the-badge)](#demarrage-rapide)
+**Une console Windows pour voir, diagnostiquer et assister un poste distant — sans serveur, sans agent, sans usine à gaz.**
 
 <br/>
 
-[**Démarrage rapide**](#demarrage-rapide) · [**Fonctionnalités**](#fonctionnalites) · [**EDR & Sécurité**](#edr-et-faux-positifs) · [**Déploiement GPO**](GPO-DEPLOYMENT.md)
+[![Release](https://img.shields.io/github/v/release/neosoda/ShadowRDP?color=38BDF8&label=release&style=flat-square)](https://github.com/neosoda/ShadowRDP/releases/latest)
+[![PowerShell 5.1](https://img.shields.io/badge/PowerShell-5.1%2B-3677B2?logo=powershell&logoColor=white&style=flat-square)](#prérequis)
+[![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011%20%2F%20Server-0078D4?logo=windows&logoColor=white&style=flat-square)](#prérequis)
+[![Windows CI](https://github.com/neosoda/ShadowRDP/actions/workflows/powershell.yml/badge.svg)](https://github.com/neosoda/ShadowRDP/actions/workflows/powershell.yml)
+[![No agent](https://img.shields.io/badge/Agent%20sur%20les%20postes-aucun-14B8A6?style=flat-square)](#comment-ça-marche)
+
+<br/>
+
+[**Découvrir**](#en-un-coup-dœil) &nbsp;·&nbsp;
+[**Captures**](#interface) &nbsp;·&nbsp;
+[**Installer**](#démarrage-rapide) &nbsp;·&nbsp;
+[**Déployer par GPO**](GPO-DEPLOYMENT.md) &nbsp;·&nbsp;
+[**Télécharger**](https://github.com/neosoda/ShadowRDP/releases/latest)
 
 </div>
 
 ---
 
-> [!CAUTION]
-> Ce toolkit est destiné **uniquement** à l'administration légitime, au support utilisateur autorisé et à la maintenance d'un parc maîtrisé. Informer les utilisateurs lors de toute prise en main distante — surtout en mode Shadow sans consentement. En cas de doute, valider avec le RSSI avant déploiement.
->
-> **Dérives à éviter :** surveillance discrète, déploiement hors cadre DSI, pare-feu trop permissif, usage à des fins offensives.
+## ✦ En un coup d'œil
 
----
-
-## Aperçu visuel
-
-<p align="center">
-  <img src="public/Capture1.png" alt="Onglet Assistant RDP" width="48%"/>
-  &nbsp;
-  <img src="public/Capture2.png" alt="Onglet Scan réseau" width="48%"/>
-</p>
-
----
-
-## Fonctionnalités
+ShadowRDP rassemble dans une **seule interface WPF** les outils du support informatique Windows : recherche de sessions, Shadow RDP, connexion classique, diagnostic réseau et découverte d'hôtes.
 
 <table>
 <tr>
-<td valign="top" width="50%">
+<td width="50%" valign="top">
 
-**Assistant opérateur**
+### 🖥️ Prise en main
 
-- RDP Shadow : visualisation, contrôle, no-consent
-- Double-clic sur une session → Shadow immédiat
-- Diagnostic TCP 3389/135/445 + DNS/ICMP, sans bloquer sur un ping filtré
-- Favoris et 10 derniers postes (préférences locales par opérateur)
-- Recherche d’ordinateurs Active Directory en LDAP, sans RSAT
-- Lancement RDP classique en un clic
-- Badge `DOMAINE\utilisateur` dynamique
-- Tri des colonnes dans les tableaux
-- Audit log opérateur automatique
+- **Shadow RDP** : visualisation ou contrôle d'une session utilisateur.
+- **RDP classique** en un clic.
+- Énumération des **sessions réellement actives**.
+- **Timeout** pour ne pas attendre indéfiniment une cible inaccessible.
+- **Favoris** et derniers postes consultés.
 
 </td>
-<td valign="top" width="50%">
+<td width="50%" valign="top">
 
-**Scan réseau CIDR**
+### 🩺 Diagnostic intégré
 
-- 16 pings async en parallèle — /24 en ~16 s
-- Résolution DNS inverse asynchrone, limite de sécurité de 1 024 adresses
-- Résultats affichés en temps réel
-- Export CSV via boîte de dialogue native
-- Bascule automatique vers l'onglet Assistant
-- Touche Entrée sur le champ CIDR
+- Résolution **DNS / IP**.
+- Test **ICMP** sans considérer son absence comme une panne.
+- Vérification **RDP 3389**, **RPC 135** et **SMB 445**.
+- Interrogation des sessions et remontée des erreurs.
+- Recherche de postes **Active Directory** sans RSAT.
 
 </td>
 </tr>
 <tr>
 <td valign="top">
 
-**Déploiement GPO**
+### 📡 Découverte réseau
 
-- Script idempotent avec marqueur de version et contrôle à chaque démarrage
-- Sauvegarde initiale de la configuration machine, restauration prudente à la désinstallation
-- Wrapper `.cmd` gérant l'élévation admin
-- Mode audit `-WhatIf` et retrait `-Uninstall`
-- WinRM optionnel via `-EnableWinRM`
-- Règles WMI, SMB et journaux distants uniquement sur demande (`-EnableExtendedFirewallRules`)
-- Pas de redémarrage `TermService` par défaut
+- Scan IPv4 **CIDR**, jusqu'à **1 024 adresses**.
+- **16 pings asynchrones** en parallèle.
+- **DNS inverse asynchrone** pour garder la fenêtre réactive.
+- Résultats progressifs, annulation et **export CSV**.
+- Transfert d'un poste vers l'assistant en un clic.
 
 </td>
 <td valign="top">
 
-**Sécurité & traçabilité**
+### 🛡️ Déploiement maîtrisé
 
-- Élévation portée par `cmd.exe`, pas par PowerShell
-- Audit log dans `C:\Windows\Logs\` (opérateur + cible)
-- Batch ICMP limité pour compatibilité EDR
-- Signature Authenticode recommandée
-- Section [EDR dédiée](#edr-et-faux-positifs)
+- Préparation des postes par **GPO de démarrage**.
+- Configuration **RDP / NLA / Shadow / pare-feu**.
+- **Consentement requis par défaut** pour le contrôle.
+- Sauvegarde initiale des paramètres et **restauration** au retrait.
+- WinRM et règles distantes étendues **optionnels**.
 
 </td>
 </tr>
 </table>
 
----
+## ✦ Interface
 
-## Vue d'ensemble
+<div align="center">
+<table>
+<tr>
+<td width="50%" align="center">
+<img src="public/Capture1.png" alt="Console d'assistance : recherche et sélection d'une session distante" width="100%"/>
+<br/>
+<sub><b>Assistant RDP</b> — sessions et modes d'intervention</sub>
+</td>
+<td width="50%" align="center">
+<img src="public/Capture2.png" alt="Découverte réseau CIDR dans ShadowRDP" width="100%"/>
+<br/>
+<sub><b>Scan réseau</b> — découverte des postes</sub>
+</td>
+</tr>
+</table>
+</div>
 
-| Module | Fichier principal | Objectif |
-|---|---|---|
-| Assistant opérateur | `RemoteDesktopAssistant.cmd` → `RemoteDesktopAssistantV1.4.ps1` | UI : sessions Shadow + scan réseau |
-| Déploiement GPO | `Deploy-RDPGPO-Startup.cmd` → `Deploy-RDPGPO.ps1` | Configure RDP, Shadow, RemoteRegistry et pare-feu |
+> [!NOTE]
+> Ces captures illustrent l'interface historique. La version 1.5 ajoute notamment les favoris, le diagnostic et la recherche AD ; des captures actualisées seront intégrées après validation de l'interface sur Windows.
+
+## ✦ Démarrage rapide
+
+**1.** Récupérer la [dernière version](https://github.com/neosoda/ShadowRDP/releases/latest), puis extraire l'archive dans un dossier local.
+
+**2.** Depuis un poste Windows d'administration, lancer :
+
+```text
+RemoteDesktopAssistant.cmd
+```
+
+**3.** Entrer le **nom d'un PC ou son IP**, puis cliquer sur **Rechercher sessions**, **Diagnostiquer** ou **RDP classique**.
+
+> [!TIP]
+> Le lanceur `RemoteDesktopAssistant.cmd` gère l'élévation. Aucun serveur ShadowRDP ni agent spécifique n'est à installer sur les postes cibles. Les **services et règles Windows nécessaires** doivent en revanche être configurés sur ces postes.
+
+### Prérequis
+
+| Composant | Configuration |
+|:--|:--|
+| Poste opérateur | Windows 10/11 ou Windows Server avec interface graphique |
+| PowerShell | **Windows PowerShell 5.1**, exécution en **64 bits** recommandée |
+| Droits | Administrateur local sur les machines ciblées selon l'opération |
+| Réseau | Accès aux services Windows RDP/RPC nécessaires |
+| Active Directory | **Facultatif** pour l'interface ; requis pour le déploiement par GPO |
+
+> [!IMPORTANT]
+> Le code est analysé et testé automatiquement sur Windows, mais les scénarios de **prise en main réelle et de déploiement GPO** doivent être validés dans votre environnement avant généralisation.
+
+## ✦ Comment ça marche
+
+```text
+      POSTE OPÉRATEUR                             POSTES WINDOWS
+ ┌──────────────────────────┐                 ┌──────────────────────┐
+ │  ShadowRDP (WPF)         │                 │  Session utilisateur │
+ │  • Sessions / qwinsta    │ ─── RPC ──────▶ │  Services Windows    │
+ │  • Shadow / mstsc        │ ─── RDP ──────▶ │  RDP + stratégie     │
+ │  • DNS / ICMP / TCP      │ ─── Réseau ───▶ │  Pare-feu ciblé      │
+ │  • Favoris / recherche AD│                 └──────────────────────┘
+ └──────────────────────────┘
+               │                                     ▲
+               │      GPO machine (facultative)      │
+               └─────────────────────────────────────┘
+```
+
+Deux scripts distincts, une seule logique : **l'opérateur pilote depuis l'interface ; la GPO prépare les postes**. L'assistant fonctionne sans infrastructure ShadowRDP centrale.
+
+### Modes d'intervention Shadow
+
+| Stratégie Windows `Shadow` | Comportement |
+|:--:|:--|
+| **1 — par défaut** | Contrôle total **avec consentement** |
+| 2 | Contrôle total **sans consentement** |
+| 3 | Visualisation seule **avec consentement** |
+| 4 | Visualisation seule **sans consentement** |
+| 0 | Shadow interdit |
+
+Le mode sans consentement ne doit être utilisé que dans un **cadre d'administration autorisé et documenté**. Il n'est **pas activé par défaut** par ShadowRDP 1.5.
+
+## ✦ Déploiement des postes
+
+Le module `Deploy-RDPGPO.ps1` prépare les postes : stratégie Shadow, RDP/NLA, service `RemoteRegistry`, règles pare-feu et suivi local de l'état du déploiement.
+
+```powershell
+# Audit : afficher les modifications envisagées
+powershell.exe -NoProfile -File .\Deploy-RDPGPO.ps1 -WhatIf
+
+# Appliquer la configuration par défaut (avec consentement)
+powershell.exe -NoProfile -File .\Deploy-RDPGPO.ps1
+
+# Optionnel : activer les groupes de règles WMI/SMB/journaux distants
+powershell.exe -NoProfile -File .\Deploy-RDPGPO.ps1 -EnableExtendedFirewallRules
+
+# Restaurer l'état initial sauvegardé
+powershell.exe -NoProfile -File .\Deploy-RDPGPO.ps1 -Uninstall
+```
 
 <details>
-<summary><strong>Arborescence du projet</strong></summary>
+<summary><b>Paramètres de sécurité par défaut</b></summary>
+
+| Paramètre | Valeur |
+|:--|:--|
+| `ShadowMode` | `1` — contrôle avec consentement |
+| `AllowedRemoteAddresses` | `LocalSubnet` |
+| `MaxAgeDays` | `0` — contrôle à chaque exécution |
+| `EnableWinRM` | Désactivé |
+| `EnableExtendedFirewallRules` | Désactivé |
+| Redémarrage de `TermService` | Non |
+| Sauvegarde d'état | `%ProgramData%\ShadowRDP\deployment-backup.json` |
+
+**Attention :** si la sauvegarde initiale est absente ou invalide, la désinstallation refuse de modifier aveuglément les paramètres du poste. Une migration depuis une ancienne version sauvegarde **l'état actuel**, pas un état historique antérieur aux anciennes installations.
+
+</details>
+
+Pour le déploiement à l'échelle d'un domaine, utiliser **[le guide GPO pas à pas](GPO-DEPLOYMENT.md)** avec `Deploy-RDPGPO-Startup.cmd` et tester d'abord sur une **OU pilote**.
+
+## ✦ Sécurité & traçabilité
+
+> [!CAUTION]
+> ShadowRDP est conçu pour le **support légitime de machines administrées**. Toute prise en main doit respecter les règles internes et l'information des utilisateurs. N'activez pas le contrôle sans consentement hors d'un cadre explicitement validé.
+
+- **Privilèges** : exécution opérateur élevée, contrôle des droits sur les cibles.
+- **Pare-feu** : règles distantes étendues en **opt-in**, plages sources à restreindre.
+- **Journal opérateur** : `C:\Windows\Logs\RemoteDesktopAssistant-audit.log` (repli local dans `%TEMP%` si nécessaire).
+- **Journal de déploiement** : `C:\Windows\Logs\RDP-Shadow-Deploy.log`.
+- **Signature** : Authenticode recommandé avant diffusion en parc.
+- **EDR** : valider l'usage de `mstsc /shadow`, `qwinsta` et des opérations réseau avec votre équipe sécurité. Éviter les exclusions globales.
+
+**Le journal local est une aide au diagnostic, pas une preuve infalsifiable** ; une collecte centralisée est préférable si une traçabilité forte est requise.
+
+## ✦ Pour les contributeurs
 
 ```text
 ShadowRDP/
-├── RemoteDesktopAssistant.cmd          ← lanceur (élévation + appel du .ps1)
-├── RemoteDesktopAssistantV1.4.ps1
-├── Deploy-RDPGPO-Startup.cmd
-├── Deploy-RDPGPO.ps1
-├── GPO-DEPLOYMENT.md
-├── README.md
-└── _OLD/
+├── RemoteDesktopAssistant.cmd            # lancement avec élévation
+├── RemoteDesktopAssistantV1.4.ps1         # interface WPF + logique opérateur
+├── Deploy-RDPGPO-Startup.cmd              # lanceur pour GPO ordinateur
+├── Deploy-RDPGPO.ps1                      # configuration et restauration
+├── GPO-DEPLOYMENT.md                      # guide d'exploitation
+├── tests/Smoke.Tests.ps1                  # contrôles Windows PowerShell
+├── public/                                # captures et identité visuelle
+└── .github/workflows/powershell.yml       # CI Windows
 ```
 
-</details>
+### Exécuter les tests
+
+```powershell
+powershell.exe -NoProfile -File .\tests\Smoke.Tests.ps1
+```
+
+La CI valide la **syntaxe PowerShell**, le **chargement réel XAML** sous Windows et les fonctions de validation/scan réseau. Elle **ne simule pas une session RDP distante ni l'application effective d'une GPO**.
 
 ---
 
-## Démarrage rapide
+<div align="center">
 
-> [!TIP]
-> Utilisez le wrapper CMD — l'élévation est portée par `cmd.exe` et non par PowerShell, ce qui réduit les faux positifs EDR.
+**ShadowRDP — Built for the people who keep Windows fleets running.**
 
-### Assistant opérateur
+[Releases](https://github.com/neosoda/ShadowRDP/releases) · [Documentation GPO](GPO-DEPLOYMENT.md) · [Issues](https://github.com/neosoda/ShadowRDP/issues) · [Contributeur @neosoda](https://github.com/neosoda)
 
-```text
-RemoteDesktopAssistant.cmd   ← double-cliquer (élévation gérée par le wrapper)
-```
+<sub>PowerShell · Windows · Active Directory · Remote support</sub>
 
-Ou directement :
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\RemoteDesktopAssistantV1.4.ps1
-```
-
-### Déploiement manuel (admin)
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\Deploy-RDPGPO.ps1 -MaxAgeDays 0
-```
-
-### Audit sans modification
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\Deploy-RDPGPO.ps1 -WhatIf -MaxAgeDays 0
-```
-
-### Retrait de la configuration
-
-La désinstallation restaure les paramètres d’origine enregistrés dans `%ProgramData%\ShadowRDP\deployment-backup.json`. Si la sauvegarde manque, le script refuse de désactiver aveuglément RDP ou les règles système.
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\Deploy-RDPGPO.ps1 -Uninstall
-```
-
-### Règles distantes étendues (optionnel)
-
-```powershell
-.\Deploy-RDPGPO.ps1 -EnableExtendedFirewallRules -MaxAgeDays 0
-```
-
-Cette option ouvre également les groupes WMI, SMB et journaux distants, toujours limités par `AllowedRemoteAddresses`. Ne l’activer que si le diagnostic le justifie.
-
-### Activation WinRM (optionnel)
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\Deploy-RDPGPO.ps1 -EnableWinRM -MaxAgeDays 0
-```
-
----
-
-## Déploiement GPO Startup
-
-Dans la GPO, référencer le wrapper :
-
-```text
-Configuration ordinateur > Stratégies > Paramètres Windows > Scripts > Démarrage
-→ Deploy-RDPGPO-Startup.cmd
-```
-
-Le wrapper lance PowerShell en `-NoProfile -NonInteractive -ExecutionPolicy Bypass` et appelle `Deploy-RDPGPO.ps1` dans le même dossier.
-
-<details>
-<summary><strong>Paramètres par défaut du wrapper</strong></summary>
-
-| Paramètre | Valeur par défaut |
-|---|---|
-| `ShadowMode` | `1` (contrôle avec consentement) |
-| `AllowedRemoteAddresses` | `LocalSubnet` |
-| `NetworkWaitTimeoutSeconds` | `0` |
-| `MaxAgeDays` | `0` (contrôle à chaque exécution) |
-| Redémarrage `TermService` | Non |
-| Activation WinRM | Non |
-
-</details>
-
-<details>
-<summary><strong>Codes retour</strong></summary>
-
-| Code | Signification |
-|---|---|
-| `0` | Succès |
-| `1` | Erreur critique |
-| `2` | Droits insuffisants |
-
-</details>
-
-Documentation détaillée : [`GPO-DEPLOYMENT.md`](GPO-DEPLOYMENT.md)
-
----
-
-## Compatibilité Assistant ↔ Déploiement
-
-`Deploy-RDPGPO.ps1` prépare les postes cibles pour les appels de `RemoteDesktopAssistantV1.4.ps1`.
-
-| Fonction client | Prérequis cible configuré |
-|---|---|
-| Ping / scan réseau | Règle pare-feu `FPS-ICMP4-ERQ-In*` |
-| `qwinsta.exe /server:<poste>` | `RemoteRegistry` et règles `RemoteSvc*` ; si nécessaire dans votre environnement, activer les règles additionnelles avec `-EnableExtendedFirewallRules` |
-| `mstsc.exe /v:<poste>` | RDP activé + règles `RemoteDesktop-*` |
-| `mstsc.exe /shadow` | `AllowRemoteRPC=1` + policy `Shadow=1` par défaut (avec consentement) |
-| `mstsc.exe /shadow /noConsentPrompt` | Exige une configuration explicite `-ShadowMode 2`, autorisée par la DSI |
-
-> [!NOTE]
-> WinRM n'est pas requis par l'application et reste désactivé par défaut.
-
----
-
-## Scan réseau CIDR
-
-Le champ scan accepte plusieurs formats :
-
-| Saisie | Interprété comme |
-|---|---|
-| `192.168.1.0/24` | Plage exacte |
-| `192.168.1.0` | Auto-converti en `/24` |
-| `192.168.1` | Auto-converti en `192.168.1.0/24` |
-| `172.16.5.0/26` | Plage exacte |
-
-**Comportement :**
-
-- **16 pings asynchrones en parallèle** — un /24 se complète en ~16 s
-- Fenêtre réactive — scan non bloquant via `DispatcherTimer` + `PingAsync` + DNS inverse asynchrone
-- Hôtes en ligne affichés **en temps réel** dans le tableau
-- `Annuler` interrompt proprement le scan et libère les ressources
-- `Exporter CSV` sauvegarde les résultats via une boîte de dialogue native
-- `Utiliser la sélection` copie l'IP et bascule automatiquement vers l'onglet Assistant
-- Erreurs journalisées dans `%TEMP%\RemoteDesktopAssistant-scan.log`
-- Refus des plages plus grandes que `/22`, `/31` et `/32` pris en charge
-
----
-
-## EDR et faux positifs
-
-> [!WARNING]
-> Ce toolkit manipule des primitives surveillées par les EDR (RDP shadow, énumération de sessions distantes, scan réseau). Des alertes sont possibles selon la politique de l'EDR. Les mesures ci-dessous réduisent significativement l'exposition.
-
-### Signaux déclencheurs connus
-
-| Signal | Règle type | Mitigation |
-|---|---|---|
-| `powershell.exe` se re-spawn avec `-Verb RunAs` | `proc_creation_win_powershell_privilege_escalation` | Utiliser `RemoteDesktopAssistant.cmd` — élévation portée par `cmd.exe` |
-| `-ExecutionPolicy Bypass` dans les args d'un processus enfant | `proc_creation_win_powershell_exec_bypass` | Idem — le Bypass reste dans le `.cmd`, pas dans le `.ps1` |
-| Pings ICMP en masse | `net_connection_win_susp_mass_icmp` | Batch limité à 16 — réduire via `$Script:NetworkScanBatchSize` si besoin |
-| `qwinsta.exe /server:<remote>` | `proc_creation_win_qwinsta_remote` | Inhérent — justifié par le contexte support |
-| `mstsc.exe /shadow /noConsentPrompt` | `proc_creation_win_mstsc_shadow_noconsent` | Inhérent — à whitelister après validation RSSI |
-| Script PS non signé + Bypass | Heuristique générique | **Signer le script** avec le CA interne (voir ci-dessous) |
-
-### Signature Authenticode (recommandé)
-
-Signer le script avec un certificat de la PKI interne élimine les alertes heuristiques :
-
-```powershell
-# Récupérer le certificat de signature de code (PKI interne)
-$cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Select-Object -First 1
-
-# Signer
-Set-AuthenticodeSignature -FilePath .\RemoteDesktopAssistantV1.4.ps1 `
-    -Certificate $cert `
-    -TimestampServer "http://timestamp.votredomaine.local"
-
-# Vérifier
-Get-AuthenticodeSignature .\RemoteDesktopAssistantV1.4.ps1
-```
-
-Une fois signé, remplacer `Bypass` par `AllSigned` dans le wrapper.
-
-### Audit log opérateur
-
-Chaque action sensible est journalisée dans `C:\Windows\Logs\RemoteDesktopAssistant-audit.log` :
-
-```
-2026-05-02 14:23:11 | DOMAINE\jdupont | PC-SUPPORT | DEMARRAGE        |
-2026-05-02 14:23:18 | DOMAINE\jdupont | PC-SUPPORT | SESSIONS_ENUM    | 192.168.1.45
-2026-05-02 14:23:21 | DOMAINE\jdupont | PC-SUPPORT | SHADOW_NoConsent | 192.168.1.45 (SessionID=2, Utilisateur=jmartin)
-```
-
-Ce journal local facilite l'audit mais ne constitue pas, à lui seul, une preuve infalsifiable : pour un audit central, collecter les événements dans le SIEM.
-
-### Exclusion HarfangLab
-
-Après signature et validation RSSI, ajouter une exclusion dans la console HarfangLab (**Politique > Exclusions > Processus**) basée sur le hash SHA-256 ou la signature Authenticode :
-
-```powershell
-Get-FileHash .\RemoteDesktopAssistantV1.4.ps1 -Algorithm SHA256
-```
-
----
-
-## Nouveautés de la branche 1.5
-
-- **Diagnostic intégré** : bouton *Diagnostiquer* (DNS, ICMP, RDP 3389/TCP, RPC 135/TCP, SMB 445/TCP).
-- **Favoris et historique** : stockage dans `%LOCALAPPDATA%\ShadowRDP\preferences.json`.
-- **Annuaire AD** : recherche de postes par nom ou FQDN depuis le domaine, sans installation de RSAT.
-- **Sessions** : timeout effectif de 5 secondes pour `qwinsta`, sortie et erreurs drainées sans interblocage.
-- **Scanner** : CIDR bornés à 1 024 adresses, DNS inverse asynchrone.
-- **Déploiement** : consentement requis par défaut (`ShadowMode=1`), sauvegarde et restauration de la configuration machine.
-- **CI** : analyse syntaxique PowerShell, validation XAML et tests CIDR sous Windows.
-
-> **Attention :** les fonctions GUI et GPO doivent être validées sur un poste Windows et une OU pilote avant déploiement large. La CI n'effectue pas de session Shadow réelle.
-
----
-
-## Prérequis
-
-- Windows PowerShell 5.1+
-- Droits administrateur local
-- Exécution conseillée en PowerShell 64 bits
-- Contexte AD/GPO selon votre organisation
-- Windows 10 / 11 / Windows Server avec module `NetSecurity`
-
----
-
-## Tests et vérifications
-
-### Validation syntaxe PowerShell
-
-```powershell
-$tokens = $null; $errors = $null
-[void][System.Management.Automation.Language.Parser]::ParseFile(
-    (Resolve-Path .\RemoteDesktopAssistantV1.4.ps1), [ref]$tokens, [ref]$errors
-)
-$errors
-```
-
-### Vérifications post-déploiement (poste cible)
-
-```powershell
-Get-ItemProperty 'HKLM:\SOFTWARE\GrandEst\CMIL\RDPShadowDeploy'
-Get-Service RemoteRegistry, TermService
-Get-NetFirewallRule -Name 'RemoteDesktop-*','RemoteSvc*','FPS-ICMP4-ERQ-In*','FPS-SMB-In*' -ErrorAction SilentlyContinue
-```
-
----
-
-## Bonnes pratiques
-
-- Tester en préproduction avant diffusion large
-- Limiter les ouvertures pare-feu au strict nécessaire
-- Journaliser les exécutions en environnement de prod
-- Préférer les GPO natives pour les paramètres stables (RDP, NLA, firewall)
-- Garder le script pour l'idempotence, les écarts de parc et l'observabilité
+</div>
