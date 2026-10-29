@@ -133,7 +133,7 @@ function Get-RemoteUserSessions {
 }
 
 function Start-ShadowSession {
-    param([string]$ComputerTarget, [int]$SessionID, [string]$Mode)
+    param([string]$ComputerTarget, [int]$SessionID, [ValidateSet('View','Control','NoConsent')][string]$Mode)
     Assert-ComputerTarget -ComputerName $ComputerTarget
     $shadowArgs = switch ($Mode) {
         'View' { "/shadow:$SessionID /v:$ComputerTarget" }
@@ -281,7 +281,13 @@ function Get-SupportDiagnostic {
         $lines.Add("$purpose (TCP $port) : " + $(if ($ok) { 'OK' } else { 'Inaccessible' }))
     }
     $lines.Add('')
-    $lines.Add('Pour diagnostiquer les droits et la strategie Shadow, interroger les sessions.')
+    try {
+        $sessions = @(Get-RemoteUserSessions -ComputerName $ComputerName)
+        $lines.Add("Interrogation des sessions : OK ($($sessions.Count) session(s) utilisateur)")
+    }
+    catch {
+        $lines.Add("Interrogation des sessions : $($_.Exception.Message)")
+    }
     return ($lines -join [Environment]::NewLine)
 }
 
@@ -650,7 +656,7 @@ $xaml = @"
                                                     <TextBlock Text="qwinsta" Foreground="#B9E7FF" FontSize="11" FontWeight="SemiBold"/>
                                                 </Border>
                                             </StackPanel>
-                                            <TextBlock Text="Sélectionnez une ligne pour activer l'intervention Shadow." Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,6,0,0"/>
+                                            <TextBlock Text="Sélectionnez une session active pour autoriser l'intervention Shadow." Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,6,0,0"/>
                                         </StackPanel>
                                         <Border Grid.Column="1" Background="#0D2740" BorderBrush="#256B91" BorderThickness="1" CornerRadius="18" Padding="12,8" VerticalAlignment="Top">
                                             <StackPanel Orientation="Horizontal">
@@ -1103,12 +1109,13 @@ $txtComputerName.Add_KeyDown({
     })
 
 $dgSessions.Add_SelectionChanged({
-        $btnLaunch.IsEnabled = ($dgSessions.SelectedItem -ne $null)
+        $selected = $dgSessions.SelectedItem
+        $btnLaunch.IsEnabled = ($null -ne $selected -and $selected.Etat -match '^(?i:active|actif)$')
     })
 
 $dgSessions.Add_MouseDoubleClick({
         $sel = $dgSessions.SelectedItem
-        if ($null -eq $sel) { return }
+        if ($null -eq $sel -or $sel.Etat -notmatch '^(?i:active|actif)$') { return }
         $mode = if ($rbView.IsChecked) { 'View' } elseif ($rbControl.IsChecked) { 'Control' } else { 'NoConsent' }
         if ($mode -eq 'NoConsent') {
             $confirm = [System.Windows.MessageBox]::Show([string]"Prendre le contrôle forcé sans le consentement de l'utilisateur ?", "Avertissement", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Warning)
@@ -1127,7 +1134,7 @@ $dgSessions.Add_MouseDoubleClick({
 
 $btnLaunch.Add_Click({
         $sel = $dgSessions.SelectedItem
-        if ($sel -eq $null) { return }
+        if ($sel -eq $null -or $sel.Etat -notmatch '^(?i:active|actif)$') { return }
     
         $mode = if ($rbView.IsChecked) { 'View' } elseif ($rbControl.IsChecked) { 'Control' } else { 'NoConsent' }
     
