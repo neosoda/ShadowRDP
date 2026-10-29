@@ -650,28 +650,27 @@ $xaml = @"
 
                             <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,16">
                                 <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
 
-                                    <StackPanel Grid.Column="0" Margin="0,0,18,0" MinWidth="260">
+                                    <StackPanel Grid.Row="0">
                                         <Label Content="Cible" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="14"/>
                                         <TextBlock Text="Nom de l'ordinateur ou adresse IP" Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,4,0,8"/>
                                         <TextBox Name="txtComputerName"/>
                                         <StackPanel Orientation="Horizontal" Margin="0,9,0,0">
-                                            <ComboBox Name="cbFavorites" Width="175" Height="32" Background="#20344F" Foreground="Black" ToolTip="Favoris et historique"/>
+                                            <ComboBox Name="cbFavorites" Width="210" Height="32" Background="#20344F" Foreground="Black" ToolTip="Favoris et historique"/>
                                             <Button Name="btnFavorite" Content="☆ Favori" MinHeight="32" Padding="9,0" Margin="9,0,0,0" Background="#334155"/>
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <Button Name="btnConnect" Grid.Column="1" Content="Rechercher sessions" Background="{StaticResource AccentStrong}" Margin="0,31,10,0"/>
-                                    <Button Name="btnClassicRDP" Grid.Column="2" Content="RDP classique" Background="{StaticResource Success}" Margin="0,31,10,0" ToolTip="Ouvrir une session Bureau à distance classique"/>
-                                    <Button Name="btnDiagnose" Grid.Column="3" Content="Diagnostiquer" Background="#334155" Margin="0,31,10,0"/>
-                                    <Button Name="btnADSearch" Grid.Column="4" Content="Annuaire AD" Background="#334155" Margin="0,31,0,0"/>
+                                    <WrapPanel Grid.Row="1" Margin="0,17,0,0">
+                                        <Button Name="btnConnect" Content="Rechercher sessions" Background="{StaticResource AccentStrong}" Margin="0,0,10,8"/>
+                                        <Button Name="btnClassicRDP" Content="RDP classique" Background="{StaticResource Success}" Margin="0,0,10,8" ToolTip="Ouvrir une session Bureau à distance classique"/>
+                                        <Button Name="btnDiagnose" Content="Diagnostiquer" Background="#334155" Margin="0,0,10,8"/>
+                                        <Button Name="btnADSearch" Content="Annuaire AD" Background="#334155" Margin="0,0,0,8"/>
+                                    </WrapPanel>
                                 </Grid>
                             </Border>
 
