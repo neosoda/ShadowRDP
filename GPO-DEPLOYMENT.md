@@ -63,23 +63,37 @@ Le wrapper execute:
 
 ```cmd
 Deploy-RDPGPO.ps1 ^
-  -ShadowMode 2 ^
+  -ShadowMode 1 ^
   -AllowedRemoteAddresses "LocalSubnet" ^
   -NetworkWaitTimeoutSeconds 0 ^
   -NetworkRetryIntervalSeconds 5 ^
-  -MaxAgeDays 7
+  -MaxAgeDays 0
 ```
 
 Effet:
 
 - RDP active.
 - NLA active.
-- Shadow RDP autorise en controle sans consentement.
+- Shadow RDP autorise en controle **avec consentement** (mode 1). Le mode 2 sans consentement exige une configuration explicite et une autorisation de la DSI.
 - `qwinsta /server:<poste>` rendu possible.
 - Ping entrant autorise pour le scan reseau.
 - Pare-feu limite a `LocalSubnet`.
+- Activation par defaut limitee aux groupes `RemoteDesktop-*`, `RemoteSvc*`, `FPS-ICMP4-ERQ-In*`.
+- Groupes `RemoteEventLog*`, `WMI-*` et `FPS-SMB-In*` uniquement avec `-EnableExtendedFirewallRules`.
+- Sauvegarde initiale du registre, des services et des regles pare-feu avant toute modification.
+- Verifications a chaque demarrage (`MaxAgeDays 0`).
 - Pas d'activation WinRM par defaut.
 - Pas de redemarrage `TermService` par defaut.
+
+## Ouverture pare-feu etendue (uniquement si necessaire)
+
+En cas d'echec de `qwinsta` alors que le poste repond, tester les regles RPC et les droits de l'operateur. Les groupes de regles supplementaires peuvent etre actives par :
+
+```powershell
+.\Deploy-RDPGPO.ps1 -EnableExtendedFirewallRules -MaxAgeDays 0
+```
+
+Evitez cette option si les regles minimales suffisent.
 
 ## Filtrage et securite
 
@@ -137,7 +151,7 @@ Valeurs attendues:
 fDenyTSConnections = 0
 AllowRemoteRPC     = 1
 UserAuthentication = 1
-Shadow             = 2
+Shadow             = 1
 ```
 
 Verifier les services:
@@ -169,7 +183,7 @@ Puis tester dans l'application:
 - scan reseau;
 - chargement des sessions;
 - connexion RDP classique;
-- Shadow en mode `NoConsent`.
+- Shadow en mode **avec consentement**. Tester `NoConsent` seulement si la DSI autorise explicitement `-ShadowMode 2`.
 
 ## Codes retour
 
@@ -205,14 +219,30 @@ Si `ping` echoue:
 Si `qwinsta /server:<poste>` echoue:
 
 - verifier que `RemoteRegistry` est demarre;
-- verifier les regles `RemoteSvc*`, `RemoteEventLog*`, `WMI-*`, `FPS-SMB-In*`;
+- verifier `RemoteSvc*` et les droits locaux ; selon la configuration, tester `-EnableExtendedFirewallRules` (ouvre aussi WMI/SMB/journaux distants).
 - verifier les droits de l'utilisateur operateur sur le poste cible.
 
 Si le Shadow affiche une erreur de strategie de groupe:
 
-- verifier que `Shadow=2`;
+- verifier que `Shadow=1` (ou `2` si derogation explicite);
 - verifier qu'aucune autre GPO ne remet une valeur differente;
 - lancer `gpresult /h C:\Temp\gpresult.html` sur le poste cible.
+
+## Migration depuis les anciennes versions
+
+Si une version anterieure a deja modifie le poste, la sauvegarde creee par la version 4.1 capture son **etat actuel**, et non l'etat d'avant l'ancienne version. Ne pas considerer ce fichier comme une image historique du poste avant toute installation de ShadowRDP.
+
+## Desinstallation securisee
+
+La premiere installation cree une sauvegarde de la configuration **avant modifications** :
+
+```text
+%ProgramData%\ShadowRDP\deployment-backup.json
+```
+
+`Deploy-RDPGPO.ps1 -Uninstall` utilise cette sauvegarde pour restaurer les valeurs de registre, le demarrage des services et l'etat des regles pare-feu. S'il n'existe aucune sauvegarde exploitable, il **refuse** une desinstallation destructive. Une reinstallation conserve la sauvegarde initiale. Ne la supprimez pas manuellement.
+
+**Prudence :** des modifications de GPO ou de pare-feu intervenues apres le deploiement peuvent entrer en conflit avec une restauration. Tester sur une OU pilote et coordonner avec l'administrateur de la strategie de domaine.
 
 ## Notes importantes
 

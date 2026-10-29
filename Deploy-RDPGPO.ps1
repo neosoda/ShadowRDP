@@ -17,7 +17,7 @@
 param(
     [Parameter()]
     [ValidateSet(0, 1, 2, 3, 4)]
-    [int]$ShadowMode = 2,
+    [int]$ShadowMode = 1,
 
     [Parameter()]
     [ValidateNotNullOrEmpty()]
@@ -42,7 +42,7 @@ param(
     [Parameter()]
     [Alias('SkipIfAppliedWithinDays')]
     [ValidateRange(0, 365)]
-    [int]$MaxAgeDays = 7,
+    [int]$MaxAgeDays = 0,
 
     [Parameter()]
     [ValidateRange(1, 60)]
@@ -58,6 +58,9 @@ param(
     [switch]$EnableWinRM,
 
     [Parameter()]
+    [switch]$EnableExtendedFirewallRules,
+
+    [Parameter()]
     [switch]$Uninstall,
 
     [Parameter()]
@@ -67,11 +70,12 @@ param(
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
-$script:ScriptVersion = '4.0.1'
+$script:ScriptVersion = '4.1.0'
 $script:StateRegPath = 'HKLM:\SOFTWARE\GrandEst\CMIL\RDPShadowDeploy'
 $script:EventSource = 'Deploy-RDPGPO'
 $script:Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 $script:StartTime = Get-Date
+$script:BackupPath = Join-Path $env:ProgramData 'ShadowRDP\deployment-backup.json'
 
 function Write-DeployLog {
     [CmdletBinding()]
@@ -256,6 +260,7 @@ function Test-AlreadyApplied {
     }
 
     try {
+        if ($state.LastStatus -ne 'Success') { return $false }
         if ($state.Version -ne $script:ScriptVersion) {
             return $false
         }
@@ -266,6 +271,9 @@ function Test-AlreadyApplied {
             return $false
         }
         if ([int]$state.EnableWinRM -ne [int]$EnableWinRM.IsPresent) {
+            return $false
+        }
+        if ([int]$state.EnableExtendedFirewallRules -ne [int]$EnableExtendedFirewallRules.IsPresent) {
             return $false
         }
 
@@ -303,6 +311,7 @@ function Set-DeploymentState {
         Set-ItemProperty -Path $script:StateRegPath -Name 'ShadowMode' -Value $ShadowMode -Type DWord
         Set-ItemProperty -Path $script:StateRegPath -Name 'AllowedRemoteAddresses' -Value $AllowedRemoteAddresses -Type String
         Set-ItemProperty -Path $script:StateRegPath -Name 'EnableWinRM' -Value ([int]$EnableWinRM.IsPresent) -Type DWord
+        Set-ItemProperty -Path $script:StateRegPath -Name 'EnableExtendedFirewallRules' -Value ([int]$EnableExtendedFirewallRules.IsPresent) -Type DWord
 
         if ($Status -eq 'Success') {
             Set-ItemProperty -Path $script:StateRegPath -Name 'LastSuccess' -Value (Get-Date -Format 's') -Type String
@@ -538,6 +547,151 @@ function Invoke-Step {
     }
 }
 
+
+# Preserve original machine configuration once. Never infer the old state on uninstall.
+function Save-DeploymentBackup {
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param()
+    if (Test-Path -LiteralPath $script:BackupPath) {
+        Write-DeployLog 'Sauvegarde initiale deja presente; elle est conservee.'
+        return
+    }
+
+    $registry = @(
+        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server'; Name = 'fDenyTSConnections' },
+        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server'; Name = 'AllowRemoteRPC' },
+        @{ Path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp'; Name = 'UserAuthentication' },
+        @{ Path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services'; Name = 'Shadow' },
+        @{ Path = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'; Name = 'LocalAccountTokenFilterPolicy' }
+    )
+    $regState = @(
+        foreach ($item in $registry) {
+            $properties = Get-ItemProperty -LiteralPath $item.Path -Name $item.Name -ErrorAction SilentlyContinue
+            [pscustomobject]@{
+                Path = $item.Path; Name = $item.Name
+                Exists = ($null -ne $properties)
+                Value = if ($null -ne $properties) { [int]($properties.($item.Name)) } else { $null }
+            }
+        }
+    )
+
+    $services = @(
+        foreach ($name in @('TermService', 'RemoteRegistry', 'WinRM')) {
+            $service = Get-CimInstance Win32_Service -Filter "Name='$name'" -ErrorAction Stop
+            [pscustomobject]@{ Name = $name; StartMode = $service.StartMode; State = $service.State }
+        }
+    )
+    $patterns = @('RemoteDesktop-*', 'RemoteSvc*', 'RemoteEventLog*', 'WMI-*', 'FPS-SMB-In*', 'FPS-ICMP4-ERQ-In*', 'WINRM-*')
+    $firewall = @(
+        foreach ($rule in @(Get-FirewallRulesByNamePattern -NamePatterns $patterns)) {
+            $filter = Get-NetFirewallAddressFilter -AssociatedNetFirewallRule $rule -ErrorAction Stop
+            [pscustomobject]@{
+                Name = $rule.Name
+                Enabled = [string]$rule.Enabled
+                RemoteAddress = @($filter.RemoteAddress)
+            }
+        }
+    )
+    $snapshot = [pscustomobject]@{
+        Schema = 1; ComputerName = $env:COMPUTERNAME; Created = (Get-Date).ToString('o')
+        Registry = $regState; Services = $services; Firewall = $firewall
+    }
+
+    if ($PSCmdlet.ShouldProcess($script:BackupPath, 'Create original configuration backup')) {
+        $dir = Split-Path -Path $script:BackupPath -Parent
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        $json = ConvertTo-Json -InputObject $snapshot -Depth 7
+        $temp = "$script:BackupPath.tmp"
+        [System.IO.File]::WriteAllText($temp, $json, $script:Utf8NoBom)
+        Move-Item -LiteralPath $temp -Destination $script:BackupPath -Force
+        Write-DeployLog "Sauvegarde initiale creee: $script:BackupPath"
+    }
+}
+
+function Restore-DeploymentBackup {
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param()
+    if (-not (Test-Path -LiteralPath $script:BackupPath)) {
+        throw "Impossible de desinstaller sans la sauvegarde initiale ($script:BackupPath). Aucune configuration systeme n'a ete modifiee."
+    }
+    $backup = Get-Content -LiteralPath $script:BackupPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+    if ($backup.Schema -ne 1 -or $backup.ComputerName -ne $env:COMPUTERNAME) {
+        throw 'Sauvegarde de configuration incompatible avec cet ordinateur.'
+    }
+
+    foreach ($item in @($backup.Registry)) {
+        if ($item.Exists) {
+            [void](Set-DwordValue -Path $item.Path -Name $item.Name -Value ([int]$item.Value))
+        }
+        else {
+            [void](Remove-RegistryValueSafe -Path $item.Path -Name $item.Name)
+        }
+    }
+
+    $deploymentState = Get-DeploymentState
+    $appliedAddresses = if ($null -ne $deploymentState -and $deploymentState.AllowedRemoteAddresses) {
+        @($deploymentState.AllowedRemoteAddresses.Split(',') | ForEach-Object { $_.Trim() } | Sort-Object)
+    } else { @() }
+    foreach ($ruleState in @($backup.Firewall)) {
+        $rule = Get-NetFirewallRule -Name $ruleState.Name -ErrorAction SilentlyContinue
+        if ($null -eq $rule) {
+            Write-DeployLog "Regle inexistante, restauration ignoree: $($ruleState.Name)" 'WARN'
+            continue
+        }
+        $currentFilter = Get-NetFirewallAddressFilter -AssociatedNetFirewallRule $rule -ErrorAction Stop
+        $originalAddresses = @($ruleState.RemoteAddress | Sort-Object)
+        $currentAddresses = @($currentFilter.RemoteAddress | Sort-Object)
+        if ($rule.Enabled -eq $ruleState.Enabled -and
+            ($originalAddresses -join '|') -eq ($currentAddresses -join '|')) {
+            continue
+        }
+        # Do not overwrite policies changed by another administrator after deployment.
+        if ($appliedAddresses.Count -eq 0 -or $rule.Enabled -ne 'True' -or
+            ($appliedAddresses -join '|') -ne ($currentAddresses -join '|')) {
+            Write-DeployLog "Regle modifiee depuis le deploiement; restauration ignoree: $($ruleState.Name)" 'WARN'
+            continue
+        }
+        if ($PSCmdlet.ShouldProcess($ruleState.Name, 'Restore original firewall rule')) {
+            Set-NetFirewallRule -Name $ruleState.Name -RemoteAddress ([string[]]$ruleState.RemoteAddress) -ErrorAction Stop | Out-Null
+            if ($ruleState.Enabled -eq 'True') {
+                Enable-NetFirewallRule -Name $ruleState.Name -ErrorAction Stop | Out-Null
+            }
+            else {
+                Disable-NetFirewallRule -Name $ruleState.Name -ErrorAction Stop | Out-Null
+            }
+        }
+    }
+
+    foreach ($item in @($backup.Services)) {
+        # Never interrupt WinRM unless this deployment had opted in to manage it.
+        if ($item.Name -eq 'WinRM' -and
+            ($null -eq $deploymentState -or [int]$deploymentState.EnableWinRM -ne 1)) {
+            continue
+        }
+        $startup = switch ($item.StartMode) {
+            'Auto' { 'Automatic' }
+            'Manual' { 'Manual' }
+            'Disabled' { 'Disabled' }
+            default { throw "Type de demarrage inconnu: $($item.StartMode)" }
+        }
+        # Restore startup configuration and prior running/stopped state.
+        Set-ServiceSafe -Name $item.Name -StartupType $startup
+        $current = Get-Service -Name $item.Name -ErrorAction Stop
+        if ($item.State -eq 'Running' -and $current.Status -ne 'Running') {
+            Set-ServiceSafe -Name $item.Name -StartupType $startup -Start
+        }
+        elseif ($item.State -eq 'Stopped' -and $current.Status -eq 'Running' -and
+            $item.Name -in @('RemoteRegistry', 'WinRM')) {
+            Set-ServiceSafe -Name $item.Name -StartupType $startup -Stop
+        }
+    }
+
+    if ($PSCmdlet.ShouldProcess($script:BackupPath, 'Delete restored configuration backup')) {
+        Remove-Item -LiteralPath $script:BackupPath -Force -ErrorAction Stop
+    }
+    Write-DeployLog 'Configuration initiale restauree.'
+}
+
 function Invoke-Install {
     [CmdletBinding()]
     param()
@@ -554,6 +708,7 @@ function Invoke-Install {
     }
 
     Wait-DomainNetwork | Out-Null
+    Save-DeploymentBackup
 
     $rdpPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server'
     $nlaPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp'
@@ -591,11 +746,12 @@ function Invoke-Install {
         $patterns = @(
             'RemoteDesktop-*',
             'RemoteSvc*',
-            'RemoteEventLog*',
-            'WMI-*',
-            'FPS-SMB-In*',
             'FPS-ICMP4-ERQ-In*'
         )
+
+        if ($EnableExtendedFirewallRules) {
+            $patterns += @('RemoteEventLog*', 'WMI-*', 'FPS-SMB-In*')
+        }
 
         if ($EnableWinRM) {
             $patterns += 'WINRM-*'
@@ -636,48 +792,9 @@ function Invoke-Install {
 function Invoke-Uninstall {
     [CmdletBinding()]
     param()
-
-    $state = Get-DeploymentState
-    $scriptEnabledWinRM = $false
-    if ($null -ne $state) {
-        try {
-            $scriptEnabledWinRM = ([int]$state.EnableWinRM -eq 1)
-        }
-        catch {
-            $scriptEnabledWinRM = $false
-        }
+    Invoke-Step 'Restore original configuration' {
+        Restore-DeploymentBackup
     }
-
-    $rdpPath = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server'
-    $shadowPolicyPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services'
-    $uacPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System'
-
-    Invoke-Step 'Uninstall Registry' {
-        Write-DeployLog ('fDenyTSConnections: ' + (Set-DwordValue -Path $rdpPath -Name 'fDenyTSConnections' -Value 1))
-        Write-DeployLog ('Shadow: ' + (Set-DwordValue -Path $shadowPolicyPath -Name 'Shadow' -Value 0))
-        Write-DeployLog ('AllowRemoteRPC: ' + (Remove-RegistryValueSafe -Path $rdpPath -Name 'AllowRemoteRPC'))
-        Write-DeployLog ('LocalAccountTokenFilterPolicy: ' + (Remove-RegistryValueSafe -Path $uacPath -Name 'LocalAccountTokenFilterPolicy'))
-    }
-
-    Invoke-Step 'Uninstall Services' {
-        Set-ServiceSafe -Name 'RemoteRegistry' -StartupType 'Disabled' -Stop
-        if ($scriptEnabledWinRM) {
-            Set-ServiceSafe -Name 'WinRM' -StartupType 'Manual'
-        }
-        else {
-            Write-DeployLog 'WinRM non modifie: non active par le dernier deploiement connu.'
-        }
-    }
-
-    Invoke-Step 'Uninstall Firewall' {
-        $patterns = @('RemoteDesktop-*', 'RemoteSvc*', 'RemoteEventLog*', 'WMI-*', 'FPS-SMB-In*', 'FPS-ICMP4-ERQ-In*')
-        if ($scriptEnabledWinRM) {
-            $patterns += 'WINRM-*'
-        }
-        $fw = Set-FirewallRules -NamePatterns $patterns -RemoteAddress 'Any' -Disable
-        Write-DeployLog ("Firewall disabled={0}, unchanged={1}." -f $fw.Disabled, $fw.Unchanged)
-    }
-
     Invoke-Step 'Uninstall State' {
         Set-DeploymentState -Status 'Uninstalled'
     }

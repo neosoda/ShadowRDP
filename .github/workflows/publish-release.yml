@@ -1,0 +1,37 @@
+name: Publish ShadowRDP v1.5.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/release/v1.5.0.md"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout final release source
+        uses: actions/checkout@v4
+
+      - name: Run Windows PowerShell smoke tests
+        shell: powershell
+        run: .\tests\Smoke.Tests.ps1
+
+      - name: Publish v1.5.0 on the merged commit
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v1.5.0'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists: no duplicate publication."
+            exit 0
+          }
+          gh release create $tag --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "ShadowRDP 1.5.0 — Remote Support, Refined" --notes-file ".github/release/v1.5.0.md" --latest
+          if ($LASTEXITCODE -ne 0) { throw "GitHub release creation failed." }

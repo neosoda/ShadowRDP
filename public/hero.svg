@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="388" viewBox="0 0 1200 388" role="img" aria-labelledby="title desc">
+<title id="title">ShadowRDP — Remote support, made simpler</title>
+<desc id="desc">Modern dark blue banner with networked desktop icons and a central support console</desc>
+<defs>
+  <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#070C19"/><stop offset=".55" stop-color="#10233D"/><stop offset="1" stop-color="#081520"/></linearGradient>
+  <linearGradient id="cyan" x1="0" x2="1"><stop stop-color="#60E7E1"/><stop offset="1" stop-color="#38A7FF"/></linearGradient>
+  <linearGradient id="tile" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#173D5B"/><stop offset="1" stop-color="#0A1B2D"/></linearGradient>
+  <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="26"/></filter>
+  <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse"><path d="M 42 0 L 0 0 0 42" fill="none" stroke="#2A4A68" stroke-width=".7" opacity=".24"/></pattern>
+  <filter id="shadow"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity=".38"/></filter>
+</defs>
+<rect width="1200" height="388" rx="26" fill="url(#bg)"/>
+<rect width="1200" height="388" rx="26" fill="url(#grid)"/>
+<circle cx="921" cy="144" r="166" fill="#00D6DA" opacity=".14" filter="url(#glow)"/>
+<circle cx="1132" cy="360" r="155" fill="#5865F2" opacity=".18" filter="url(#glow)"/>
+<path d="M32 62 H50 M41 53 V71" stroke="#60E7E1" stroke-width="2" opacity=".75"/>
+<rect x="67" y="52" width="139" height="31" rx="15.5" fill="#124250" stroke="#267B82"/>
+<circle cx="85" cy="68" r="4.5" fill="#55E2D9"/>
+<text x="98" y="72" fill="#B4F8F5" font-family="Segoe UI,Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="1">IT SUPPORT TOOLKIT</text>
+<text x="65" y="183" fill="#F7FAFF" font-family="Segoe UI,Arial,sans-serif" font-size="79" font-weight="800" letter-spacing="-3">Shadow<tspan fill="url(#cyan)">RDP</tspan></text>
+<text x="69" y="226" fill="#BDCFDF" font-family="Segoe UI,Arial,sans-serif" font-size="23">L'assistance distante, sans les complications.</text>
+<rect x="68" y="259" width="174" height="38" rx="19" fill="#164258" stroke="#2B91A8"/>
+<text x="155" y="283" fill="#D7FCFF" font-family="Segoe UI,Arial,sans-serif" font-size="16" text-anchor="middle">PowerShell + WPF</text>
+<rect x="255" y="259" width="142" height="38" rx="19" fill="#172B41" stroke="#34526E"/>
+<text x="326" y="283" fill="#E1EEFC" font-family="Segoe UI,Arial,sans-serif" font-size="16" text-anchor="middle">Windows / AD</text>
+<text x="68" y="342" fill="#7494AB" font-family="Segoe UI,Arial,sans-serif" font-size="15" letter-spacing=".7">SHADOW  •  DIAGNOSTIC  •  INVENTAIRE  •  GPO</text>
+
+<g transform="translate(675,56)" filter="url(#shadow)">
+  <path d="M258 135 C300 135 317 87 350 87" stroke="#3ECBDC" stroke-width="3" stroke-dasharray="7 8" fill="none" opacity=".7"/>
+  <path d="M258 150 C304 150 315 221 350 221" stroke="#3ECBDC" stroke-width="3" stroke-dasharray="7 8" fill="none" opacity=".7"/>
+  <path d="M141 246 V265 H325" stroke="#3ECBDC" stroke-width="2" stroke-dasharray="5 7" fill="none" opacity=".45"/>
+  <rect x="22" y="56" width="258" height="194" rx="19" fill="url(#tile)" stroke="#46758E" stroke-width="1.5"/>
+  <rect x="40" y="76" width="222" height="139" rx="9" fill="#081B2B" stroke="#285270"/>
+  <rect x="55" y="91" width="191" height="14" rx="7" fill="#173B55"/>
+  <circle cx="64" cy="98" r="3.5" fill="#52DCCF"/>
+  <rect x="59" y="125" width="85" height="70" rx="8" fill="#123A51"/>
+  <path d="M80 153 h42 m-42 14 h27" stroke="#4CE0E0" stroke-width="4" stroke-linecap="round" opacity=".83"/>
+  <rect x="158" y="125" width="71" height="13" rx="6" fill="#395A76"/>
+  <rect x="158" y="151" width="55" height="10" rx="5" fill="#24475F"/>
+  <rect x="158" y="172" width="65" height="10" rx="5" fill="#24475F"/>
+  <path d="M130 231 H173" stroke="#638BA4" stroke-width="6" stroke-linecap="round"/>
+  <rect x="127" y="245" width="49" height="8" rx="4" fill="#638BA4"/>
+  <rect x="349" y="45" width="125" height="100" rx="14" fill="#10293F" stroke="#4A90A4" stroke-width="1.3"/>
+  <rect x="366" y="60" width="91" height="56" rx="7" fill="#0B1B2A" stroke="#30607E"/>
+  <path d="M377 88 L395 100 L410 79 L425 94 L443 76" stroke="#5CE2DE" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <rect x="392" y="122" width="36" height="4" rx="2" fill="#628FAA"/>
+  <rect x="350" y="178" width="124" height="94" rx="14" fill="#10293F" stroke="#4A90A4" stroke-width="1.3"/>
+  <rect x="365" y="194" width="95" height="55" rx="7" fill="#0B1B2A" stroke="#30607E"/>
+  <rect x="376" y="207" width="72" height="28" rx="5" fill="#123A50"/>
+  <circle cx="394" cy="221" r="7" fill="#45D5D2"/>
+  <path d="M408 215 h26 m-26 10 h18" stroke="#6E9AB0" stroke-width="3" stroke-linecap="round"/>
+  <rect x="394" y="256" width="34" height="4" rx="2" fill="#628FAA"/>
+  <circle cx="331" cy="86" r="5" fill="#55D8DF"/>
+  <circle cx="334" cy="220" r="5" fill="#55D8DF"/>
+</g>
+<rect x="1" y="1" width="1198" height="386" rx="25" fill="none" stroke="#315774" stroke-opacity=".6" stroke-width="2"/>
+</svg>

@@ -73,80 +73,68 @@ function Resolve-ComputerNameToIP {
 
 function Get-RemoteUserSessions {
     param([string]$ComputerName)
-    
-    $sessions = @()
-    
+    Assert-ComputerTarget -ComputerName $ComputerName
     $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = "qwinsta.exe"
+    $psi.FileName = 'qwinsta.exe'
     $psi.Arguments = "/server:$ComputerName"
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
-    
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $psi
-    $process.Start() | Out-Null
-    
-    $output = $process.StandardOutput.ReadToEnd()
-    $err = $process.StandardError.ReadToEnd()
-    $process.WaitForExit(5000)
-    
-    if ($process.ExitCode -ne 0) {
-        if ($err -match '(?i)erreur 5|access.*denied|acc.s.*refus.') {
-            throw "Accès refusé (Erreur 5). Assurez-vous d'avoir les droits administrateur sur la machine cible."
+    try {
+        if (-not $process.Start()) { throw 'Impossible de lancer qwinsta.' }
+        # Drain both streams asynchronously before enforcing the timeout.
+        $stdout = $process.StandardOutput.ReadToEndAsync()
+        $stderr = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(5000)) {
+            try { $process.Kill() } catch {}
+            throw 'Timeout qwinsta (5 s) : verifier RPC, droits et pare-feu.'
         }
-        throw "Erreur qwinsta : $err"
+        $output = $stdout.GetAwaiter().GetResult()
+        $err = $stderr.GetAwaiter().GetResult()
+        if ($process.ExitCode -ne 0) {
+            if ($err -match '(?i)erreur 5|access.*denied|acc.s.*refus.') {
+                throw 'Acces refuse (erreur 5) : droits administrateur insuffisants sur la cible.'
+            }
+            throw "Erreur qwinsta ($($process.ExitCode)) : $err"
+        }
     }
-    
-    $lines = $output -split "`r?`n" | Where-Object { $_ -match '\S' }
+    finally { $process.Dispose() }
+
+    $lines = @($output -split "`r?`n" | Where-Object { $_ -match '\S' })
     if ($lines.Count -lt 2) { return @() }
-    
-    # Parsing robuste basé sur la position des colonnes
     $header = $lines[0]
-    $idxUser = $header.IndexOf("USERNAME")
-    if ($idxUser -lt 0) { $idxUser = $header.IndexOf("UTILISATEUR") }
-    $idxId = $header.IndexOf("ID")
-    $idxState = $header.IndexOf("STATE")
-    if ($idxState -lt 0) { $idxState = $header.IndexOf("ÉTAT") }
-    if ($idxState -lt 0) { $idxState = $header.IndexOf("ETAT") }
-    
-    if ($idxUser -lt 0 -or $idxId -lt 0 -or $idxState -lt 0) { throw "Format de réponse qwinsta non reconnu." }
-    
-    for ($i = 1; $i -lt $lines.Count; $i++) {
-        $line = $lines[$i]
-        
-        $sessionName = $line.Substring(0, [math]::Min($idxUser, $line.Length)).Trim()
-        
-        $username = ""
-        if ($line.Length -gt $idxUser) {
+    $idxUser = $header.IndexOf('USERNAME')
+    if ($idxUser -lt 0) { $idxUser = $header.IndexOf('UTILISATEUR') }
+    $idxId = $header.IndexOf('ID')
+    $idxState = $header.IndexOf('STATE')
+    if ($idxState -lt 0) { $idxState = $header.IndexOf('ÉTAT') }
+    if ($idxState -lt 0) { $idxState = $header.IndexOf('ETAT') }
+    if ($idxUser -lt 0 -or $idxId -le $idxUser -or $idxState -le $idxId) {
+        throw 'Format de sortie qwinsta non reconnu.'
+    }
+    $sessions = @(
+        foreach ($line in $lines[1..($lines.Count - 1)]) {
+            if ($line.Length -le $idxId) { continue }
+            $sessionName = $line.Substring(0, [math]::Min($idxUser, $line.Length)).Trim().TrimStart('>')
             $username = $line.Substring($idxUser, [math]::Min($idxId - $idxUser, $line.Length - $idxUser)).Trim()
-        }
-        
-        $idStr = ""
-        if ($line.Length -gt $idxId) {
-            $idStr = $line.Substring($idxId, [math]::Min($idxState - $idxId, $line.Length - $idxId)).Trim()
-        }
-        
-        $state = ""
-        if ($line.Length -gt $idxState) {
-            $state = $line.Substring($idxState).Trim() -split '\s+' | Select-Object -First 1
-        }
-        
-        if ($idStr -match '^\d+$') {
-            $sessions += [PSCustomObject]@{
-                SessionName = if ($sessionName) { $sessionName } else { "-" }
-                Utilisateur = if ([string]::IsNullOrWhiteSpace($username)) { "-" } else { $username }
-                ID          = [int]$idStr
-                Etat        = $state
+            $idText = $line.Substring($idxId, [math]::Min($idxState - $idxId, $line.Length - $idxId)).Trim()
+            if ($idText -notmatch '^\d+$' -or [string]::IsNullOrWhiteSpace($username)) { continue }
+            $state = if ($line.Length -gt $idxState) { ($line.Substring($idxState).Trim() -split '\s+')[0] } else { '' }
+            [pscustomobject]@{
+                SessionName = if ($sessionName) { $sessionName } else { '-' }
+                Utilisateur = $username; ID = [int]$idText; Etat = $state
             }
         }
-    }
+    )
     return $sessions
 }
 
 function Start-ShadowSession {
-    param([string]$ComputerTarget, [int]$SessionID, [string]$Mode)
+    param([string]$ComputerTarget, [int]$SessionID, [ValidateSet('View','Control','NoConsent')][string]$Mode)
+    Assert-ComputerTarget -ComputerName $ComputerTarget
     $shadowArgs = switch ($Mode) {
         'View' { "/shadow:$SessionID /v:$ComputerTarget" }
         'Control' { "/shadow:$SessionID /v:$ComputerTarget /control" }
@@ -157,6 +145,7 @@ function Start-ShadowSession {
 
 function Start-ClassicRDP {
     param([string]$ComputerTarget)
+    Assert-ComputerTarget -ComputerName $ComputerTarget
     Start-Process "mstsc.exe" -ArgumentList "/v:$ComputerTarget"
 }
 
@@ -202,6 +191,8 @@ function Get-NetworkScanTargets {
         throw "Prefixe CIDR invalide (0-32)."
     }
 
+    if ($prefix -lt 22) { throw 'Plage trop grande : 1024 adresses maximum (/22).' }
+
     $octets = $ipPart.Split('.')
     foreach ($octet in $octets) {
         if ([int]$octet -lt 0 -or [int]$octet -gt 255) {
@@ -214,8 +205,9 @@ function Get-NetworkScanTargets {
     $network = $ipValue -band $mask
     $broadcast = $network -bor ([uint32]::MaxValue -bxor $mask)
 
-    if ($prefix -ge 31) {
-        return @(Convert-UInt32ToIP -Value $network)
+    if ($prefix -eq 32) { return @(Convert-UInt32ToIP -Value $network) }
+    if ($prefix -eq 31) {
+        return @((Convert-UInt32ToIP -Value $network), (Convert-UInt32ToIP -Value ($network + 1)))
     }
 
     $targets = New-Object System.Collections.Generic.List[string]
@@ -251,6 +243,117 @@ function Get-ExceptionText {
     }
 
     return $ErrorObject.ToString()
+}
+
+function Assert-ComputerTarget {
+    param([string]$ComputerName)
+    if ([string]::IsNullOrWhiteSpace($ComputerName) -or
+        $ComputerName -notmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,252}$') {
+        throw 'Nom de poste ou adresse IPv4 invalide.'
+    }
+}
+function Find-DirectoryComputers {
+    param([string]$Query)
+    # Only literal hostname-like searches: never interpolate arbitrary LDAP syntax.
+    Assert-ComputerTarget -ComputerName $Query
+    $entry = $null
+    $search = $null
+    $results = $null
+    try {
+        $base = ([ADSI]'LDAP://RootDSE').defaultNamingContext
+        if ([string]::IsNullOrWhiteSpace($base)) { throw 'Aucun domaine Active Directory disponible.' }
+        $entry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$base")
+        $search = New-Object System.DirectoryServices.DirectorySearcher($entry)
+        $search.Filter = "(&(objectCategory=computer)(|(name=*$Query*)(dNSHostName=*$Query*)))"
+        $search.SizeLimit = 50
+        $search.PageSize = 50
+        $search.ClientTimeout = [TimeSpan]::FromSeconds(5)
+        [void]$search.PropertiesToLoad.Add('name')
+        [void]$search.PropertiesToLoad.Add('dNSHostName')
+        $results = $search.FindAll()
+        return @(
+            foreach ($result in $results) {
+                if ($result.Properties['name'].Count -gt 0) {
+                    $name = [string]$result.Properties['name'][0]
+                    $dns = if ($result.Properties['dnshostname'].Count -gt 0) { [string]$result.Properties['dnshostname'][0] } else { $name }
+                    [pscustomobject]@{ Name = $name; DNS = $dns }
+                }
+            }
+        )
+    }
+    finally {
+        if ($null -ne $results) { $results.Dispose() }
+        if ($null -ne $search) { $search.Dispose() }
+        if ($null -ne $entry) { $entry.Dispose() }
+    }
+}
+
+function Test-TcpPort {
+    param([string]$ComputerName, [int]$Port, [int]$TimeoutMs = 1200)
+    $client = New-Object System.Net.Sockets.TcpClient
+    $result = $null
+    try {
+        $result = $client.BeginConnect($ComputerName, $Port, $null, $null)
+        if (-not $result.AsyncWaitHandle.WaitOne($TimeoutMs)) { return $false }
+        try { $client.EndConnect($result); return $true } catch { return $false }
+    }
+    catch { return $false }
+    finally {
+        if ($null -ne $result) { $result.AsyncWaitHandle.Close() }
+        $client.Close()
+    }
+}
+function Get-SupportDiagnostic {
+    param([string]$ComputerName)
+    Assert-ComputerTarget -ComputerName $ComputerName
+    $lines = New-Object System.Collections.Generic.List[string]
+    $lines.Add("Cible : $ComputerName")
+    $lines.Add("DNS / IP : $(Resolve-ComputerNameToIP $ComputerName)")
+    $icmp = Test-HostReachable $ComputerName
+    $lines.Add('Ping : ' + $(if ($icmp) { 'OK' } else { 'Aucune reponse (pas forcement une panne)' }))
+    foreach ($port in @(3389, 135, 445)) {
+        $ok = Test-TcpPort -ComputerName $ComputerName -Port $port
+        $purpose = @{ 3389 = 'RDP'; 135 = 'RPC'; 445 = 'SMB' }[$port]
+        $lines.Add("$purpose (TCP $port) : " + $(if ($ok) { 'OK' } else { 'Inaccessible' }))
+    }
+    $lines.Add('')
+    try {
+        $sessions = @(Get-RemoteUserSessions -ComputerName $ComputerName)
+        $lines.Add("Interrogation des sessions : OK ($($sessions.Count) session(s) utilisateur)")
+    }
+    catch {
+        $lines.Add("Interrogation des sessions : $($_.Exception.Message)")
+    }
+    return ($lines -join [Environment]::NewLine)
+}
+
+$Script:SettingsPath = Join-Path $env:LOCALAPPDATA 'ShadowRDP\preferences.json'
+function Read-SupportPreferences {
+    try {
+        if (Test-Path -LiteralPath $Script:SettingsPath) {
+            $settings = Get-Content -LiteralPath $Script:SettingsPath -Raw | ConvertFrom-Json
+            return @{
+                Favorites = @($settings.Favorites | Where-Object { $_ -is [string] -and $_ -match '^[A-Za-z0-9][A-Za-z0-9_.-]{0,252}$' })
+                Recent = @($settings.Recent | Where-Object { $_ -is [string] -and $_ -match '^[A-Za-z0-9][A-Za-z0-9_.-]{0,252}$' })
+            }
+        }
+    } catch { Write-ScanLog -Text ("Preferences illisibles: " + $_.Exception.Message) }
+    return @{ Favorites = @(); Recent = @() }
+}
+function Save-SupportPreferences {
+    try {
+        New-Item -ItemType Directory -Path (Split-Path $Script:SettingsPath -Parent) -Force | Out-Null
+        $json = ConvertTo-Json -InputObject $Script:Preferences -Depth 4
+        $temp = "$Script:SettingsPath.tmp"
+        [System.IO.File]::WriteAllText($temp, $json, ([System.Text.UTF8Encoding]::new($false)))
+        Move-Item -LiteralPath $temp -Destination $Script:SettingsPath -Force
+    } catch { Write-ScanLog -Text ("Preferences non sauvegardees: " + $_.Exception.Message) }
+}
+function Add-RecentTarget {
+    param([string]$ComputerName)
+    Assert-ComputerTarget -ComputerName $ComputerName
+    $Script:Preferences.Recent = @($ComputerName) + @($Script:Preferences.Recent | Where-Object { $_ -ne $ComputerName } | Select-Object -First 9)
+    Save-SupportPreferences
 }
 
 function Write-ScanLog {
@@ -547,20 +650,27 @@ $xaml = @"
 
                             <Border Grid.Row="0" Style="{StaticResource Card}" Margin="0,0,0,16">
                                 <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
 
-                                    <StackPanel Grid.Column="0" Margin="0,0,18,0" MinWidth="260">
+                                    <StackPanel Grid.Row="0">
                                         <Label Content="Cible" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="14"/>
                                         <TextBlock Text="Nom de l'ordinateur ou adresse IP" Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,4,0,8"/>
                                         <TextBox Name="txtComputerName"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,9,0,0">
+                                            <ComboBox Name="cbFavorites" Width="210" Height="32" Background="#20344F" Foreground="Black" ToolTip="Favoris et historique"/>
+                                            <Button Name="btnFavorite" Content="☆ Favori" MinHeight="32" Padding="9,0" Margin="9,0,0,0" Background="#334155"/>
+                                        </StackPanel>
                                     </StackPanel>
 
-                                    <Button Name="btnConnect" Grid.Column="1" Content="Rechercher sessions" Background="{StaticResource AccentStrong}" Margin="0,31,10,0"/>
-                                    <Button Name="btnClassicRDP" Grid.Column="2" Content="RDP classique" Background="{StaticResource Success}" Margin="0,31,0,0" ToolTip="Ouvrir une session Bureau à distance classique"/>
+                                    <WrapPanel Grid.Row="1" Margin="0,17,0,0">
+                                        <Button Name="btnConnect" Content="Rechercher sessions" Background="{StaticResource AccentStrong}" Margin="0,0,10,8"/>
+                                        <Button Name="btnClassicRDP" Content="RDP classique" Background="{StaticResource Success}" Margin="0,0,10,8" ToolTip="Ouvrir une session Bureau à distance classique"/>
+                                        <Button Name="btnDiagnose" Content="Diagnostiquer" Background="#334155" Margin="0,0,10,8"/>
+                                        <Button Name="btnADSearch" Content="Annuaire AD" Background="#334155" Margin="0,0,0,8"/>
+                                    </WrapPanel>
                                 </Grid>
                             </Border>
 
@@ -583,7 +693,7 @@ $xaml = @"
                                                     <TextBlock Text="qwinsta" Foreground="#B9E7FF" FontSize="11" FontWeight="SemiBold"/>
                                                 </Border>
                                             </StackPanel>
-                                            <TextBlock Text="Sélectionnez une ligne pour activer l'intervention Shadow." Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,6,0,0"/>
+                                            <TextBlock Text="Sélectionnez une session active pour autoriser l'intervention Shadow." Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,6,0,0"/>
                                         </StackPanel>
                                         <Border Grid.Column="1" Background="#0D2740" BorderBrush="#256B91" BorderThickness="1" CornerRadius="18" Padding="12,8" VerticalAlignment="Top">
                                             <StackPanel Orientation="Horizontal">
@@ -750,6 +860,10 @@ $tabControlMain = $window.FindName("tabControlMain")
 $tabItemRDP = $window.FindName("tabItemRDP")
 $tabItemScan = $window.FindName("tabItemScan")
 $txtBadge = $window.FindName("txtBadge")
+$cbFavorites = $window.FindName("cbFavorites")
+$btnFavorite = $window.FindName("btnFavorite")
+$btnDiagnose = $window.FindName("btnDiagnose")
+$btnADSearch = $window.FindName("btnADSearch")
 $btnExportCsv = $window.FindName("btnExportCsv")
 
 $txtBadge.Text = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -761,6 +875,95 @@ $brdSessionsEmpty.Visibility = "Visible"
 $txtSessionsEmpty.Text = "Lancez une recherche pour afficher les sessions actives de la cible."
 
 $Script:CurrentTarget = ""
+$Script:Preferences = Read-SupportPreferences
+
+function Refresh-Favorites {
+    $choices = @($Script:Preferences.Favorites | ForEach-Object { "★ $_" }) +
+        @($Script:Preferences.Recent | Where-Object { $_ -notin $Script:Preferences.Favorites } | ForEach-Object { "↻ $_" })
+    $cbFavorites.ItemsSource = $null
+    $cbFavorites.ItemsSource = @($choices)
+    $cbFavorites.SelectedIndex = -1
+}
+Refresh-Favorites
+
+$cbFavorites.Add_SelectionChanged({
+    if ($null -ne $cbFavorites.SelectedItem) {
+        $txtComputerName.Text = ([string]$cbFavorites.SelectedItem).Substring(2).Trim()
+    }
+})
+$btnFavorite.Add_Click({
+    try {
+        $name = $txtComputerName.Text.Trim()
+        Assert-ComputerTarget -ComputerName $name
+        if ($name -in $Script:Preferences.Favorites) {
+            $Script:Preferences.Favorites = @($Script:Preferences.Favorites | Where-Object { $_ -ne $name })
+        } else {
+            $Script:Preferences.Favorites = @($Script:Preferences.Favorites) + @($name)
+        }
+        Save-SupportPreferences
+        Refresh-Favorites
+    }
+    catch { [System.Windows.MessageBox]::Show([string]$_.Exception.Message, 'Favoris') | Out-Null }
+})
+$btnADSearch.Add_Click({
+    try {
+        $query = $txtComputerName.Text.Trim()
+        Assert-ComputerTarget -ComputerName $query
+        $lblStatus.Content = "Recherche Active Directory : $query..."
+        $found = @(Find-DirectoryComputers -Query $query)
+        if ($found.Count -eq 0) {
+            [System.Windows.MessageBox]::Show('Aucun ordinateur correspondant.', 'Annuaire AD') | Out-Null
+            $lblStatus.Content = 'Aucun résultat AD.'
+            return
+        }
+        $dlg = New-Object System.Windows.Window
+        $dlg.Title = "Ordinateurs AD ($($found.Count) résultats)"
+        $dlg.Width = 480
+        $dlg.Height = 390
+        $dlg.MinWidth = 380
+        $dlg.WindowStartupLocation = 'CenterOwner'
+        $dlg.Owner = $window
+        $dlg.Background = '#101827'
+        $panel = New-Object System.Windows.Controls.DockPanel
+        $list = New-Object System.Windows.Controls.ListBox
+        $list.ItemsSource = $found
+        $list.DisplayMemberPath = 'DNS'
+        $list.Margin = '16'
+        $list.FontSize = 14
+        $list.MinHeight = 240
+        $choose = New-Object System.Windows.Controls.Button
+        $choose.Content = 'Utiliser ce poste'
+        $choose.Margin = '16,0,16,16'
+        $choose.MinHeight = 40
+        $choose.Add_Click({
+            if ($null -ne $list.SelectedItem) {
+                $txtComputerName.Text = [string]$list.SelectedItem.DNS
+                $dlg.DialogResult = $true
+            }
+        })
+        [System.Windows.Controls.DockPanel]::SetDock($choose, 'Bottom')
+        [void]$panel.Children.Add($choose)
+        [void]$panel.Children.Add($list)
+        $dlg.Content = $panel
+        [void]$dlg.ShowDialog()
+        $lblStatus.Content = 'Recherche Active Directory terminée.'
+    }
+    catch {
+        $lblStatus.Content = 'Active Directory indisponible.'
+        [System.Windows.MessageBox]::Show([string]$_.Exception.Message, 'Recherche AD') | Out-Null
+    }
+})
+
+$btnDiagnose.Add_Click({
+    try {
+        $name = $txtComputerName.Text.Trim()
+        $lblStatus.Content = "Diagnostic de $name..."
+        $detail = Get-SupportDiagnostic -ComputerName $name
+        [System.Windows.MessageBox]::Show($detail, 'Diagnostic réseau ShadowRDP') | Out-Null
+        $lblStatus.Content = 'Diagnostic terminé.'
+    }
+    catch { [System.Windows.MessageBox]::Show([string]$_.Exception.Message, 'Diagnostic') | Out-Null }
+})
 $Script:NetworkScanInProgress = $false
 $Script:NetworkScanCancelled = $false
 $Script:NetworkScanTargets = @()
@@ -768,6 +971,8 @@ $Script:NetworkScanLaunched = 0
 $Script:NetworkScanCompleted = 0
 $Script:NetworkScanBatchSize = 16
 $Script:PendingPings = [System.Collections.Generic.Dictionary[string, object]]::new()
+$Script:PendingDns = [System.Collections.Generic.Dictionary[string, object]]::new()
+$Script:DnsQueue = [System.Collections.Generic.Queue[object]]::new()
 $Script:ScanObservable = New-Object System.Collections.ObjectModel.ObservableCollection[object]
 $Script:NetworkScanTimer = New-Object System.Windows.Threading.DispatcherTimer
 $Script:NetworkScanTimer.Interval = [TimeSpan]::FromMilliseconds(80)
@@ -786,6 +991,8 @@ $Script:NetworkScanTimer.Add_Tick({
                     try { $entry.Ping.Dispose() } catch {}
                 }
                 $Script:PendingPings.Clear()
+                $Script:PendingDns.Clear()
+                $Script:DnsQueue.Clear()
                 $Script:NetworkScanTimer.Stop()
                 $Script:NetworkScanInProgress = $false
                 $btnScanNetwork.IsEnabled = $true
@@ -819,23 +1026,53 @@ $Script:NetworkScanTimer.Add_Tick({
                     try { $entry.Ping.Dispose() } catch {}
 
                     if ($isOnline) {
-                        $hostName = "-"
-                        try { $hostName = [System.Net.Dns]::GetHostEntry($ip).HostName } catch {}
-                        $Script:ScanObservable.Add([PSCustomObject]@{
-                                IPAddress = $ip
-                                HostName  = $hostName
-                                Status    = "En ligne"
-                            })
+                        $host = [PSCustomObject]@{
+                            IPAddress = $ip
+                            HostName = "Résolution..."
+                            Status = "En ligne"
+                        }
+                        $Script:ScanObservable.Add($host)
+                        $Script:DnsQueue.Enqueue($host)
                     }
                 }
             }
+
+            # DNS lookups must never block the WPF dispatcher.
+            while ($Script:PendingDns.Count -lt 8 -and $Script:DnsQueue.Count -gt 0) {
+                $item = $Script:DnsQueue.Dequeue()
+                try {
+                    $task = [System.Net.Dns]::GetHostEntryAsync($item.IPAddress)
+                    $Script:PendingDns[$item.IPAddress] = [pscustomobject]@{
+                        Task = $task; Host = $item; Started = [DateTime]::UtcNow
+                    }
+                }
+                catch { $item.HostName = '-' }
+            }
+            $refresh = $false
+            foreach ($ip in @($Script:PendingDns.Keys)) {
+                $entry = $Script:PendingDns[$ip]
+                if ($entry.Task.IsCompleted) {
+                    try {
+                        $entry.Host.HostName = $entry.Task.GetAwaiter().GetResult().HostName
+                    }
+                    catch { $entry.Host.HostName = '-' }
+                    [void]$Script:PendingDns.Remove($ip)
+                    $refresh = $true
+                }
+                elseif (([DateTime]::UtcNow - $entry.Started).TotalSeconds -ge 3) {
+                    $entry.Host.HostName = '-'
+                    [void]$Script:PendingDns.Remove($ip)
+                    $refresh = $true
+                }
+            }
+            if ($refresh) { $dgNetworkScan.Items.Refresh() }
 
             $pbNetworkScan.Value = $Script:NetworkScanCompleted
             $lblNetworkScanProgress.Content = "Progression : $($Script:NetworkScanCompleted)/$total"
             $lblStatus.Content = "Scan réseau : $($Script:NetworkScanCompleted)/$total — $($Script:ScanObservable.Count) en ligne"
             $brdStatus.Background = "#FFFF9800"
 
-            if ($Script:NetworkScanCompleted -ge $total -and $Script:PendingPings.Count -eq 0) {
+            if ($Script:NetworkScanCompleted -ge $total -and $Script:PendingPings.Count -eq 0 -and $Script:PendingDns.Count -eq 0 -and $Script:DnsQueue.Count -eq 0) {
                 $Script:NetworkScanTimer.Stop()
                 $Script:NetworkScanInProgress = $false
                 $btnScanNetwork.IsEnabled = $true
@@ -851,6 +1088,10 @@ $Script:NetworkScanTimer.Add_Tick({
             $detail = Get-ExceptionText -ErrorObject $_
             Write-ScanLog -Text ("Erreur timer scan: " + $detail)
             $Script:NetworkScanTimer.Stop()
+            foreach ($entry in @($Script:PendingPings.Values)) { try { $entry.Ping.Dispose() } catch {} }
+            $Script:PendingPings.Clear()
+            $Script:PendingDns.Clear()
+            $Script:DnsQueue.Clear()
             $Script:NetworkScanInProgress = $false
             $btnScanNetwork.IsEnabled = $true
             $btnCancelScanNetwork.IsEnabled = $false
@@ -878,17 +1119,19 @@ $btnConnect.Add_Click({
     
         try {
             $comp = $txtComputerName.Text.Trim()
-            if ([string]::IsNullOrWhiteSpace($comp)) { throw "Veuillez entrer une cible." }
+            Assert-ComputerTarget -ComputerName $comp
         
             $lblStatus.Content = "Ping vers $comp..."
             [System.Windows.Forms.Application]::DoEvents()
-            if (-not (Test-HostReachable $comp)) { throw "Le poste $comp est injoignable au ping." }
+            if (-not (Test-HostReachable $comp)) { $lblStatus.Content = "Ping non repondu : interrogation RPC..." }
         
             $lblStatus.Content = "Interrogation de qwinsta..."
             [System.Windows.Forms.Application]::DoEvents()
             $Script:CurrentTarget = Resolve-ComputerNameToIP $comp
         
             $sessions = Get-RemoteUserSessions -ComputerName $Script:CurrentTarget
+            Add-RecentTarget -ComputerName $comp
+            Refresh-Favorites
             Write-AuditLog -Action "SESSIONS_ENUM" -Target $Script:CurrentTarget
 
             if ($sessions.Count -eq 0) {
@@ -931,7 +1174,10 @@ $btnClassicRDP.Add_Click({
             $lblStatus.Content = "Lancement RDP classique vers $comp..."
             [System.Windows.Forms.Application]::DoEvents()
 
+            Assert-ComputerTarget -ComputerName $comp
             $Script:CurrentTarget = Resolve-ComputerNameToIP $comp
+            Add-RecentTarget -ComputerName $comp
+            Refresh-Favorites
             Write-AuditLog -Action "RDP_CLASSIQUE" -Target $Script:CurrentTarget
             Start-ClassicRDP -ComputerTarget $Script:CurrentTarget
         
@@ -950,12 +1196,13 @@ $txtComputerName.Add_KeyDown({
     })
 
 $dgSessions.Add_SelectionChanged({
-        $btnLaunch.IsEnabled = ($dgSessions.SelectedItem -ne $null)
+        $selected = $dgSessions.SelectedItem
+        $btnLaunch.IsEnabled = ($null -ne $selected -and $selected.Etat -match '^(?i:active|actif)$')
     })
 
 $dgSessions.Add_MouseDoubleClick({
         $sel = $dgSessions.SelectedItem
-        if ($null -eq $sel) { return }
+        if ($null -eq $sel -or $sel.Etat -notmatch '^(?i:active|actif)$') { return }
         $mode = if ($rbView.IsChecked) { 'View' } elseif ($rbControl.IsChecked) { 'Control' } else { 'NoConsent' }
         if ($mode -eq 'NoConsent') {
             $confirm = [System.Windows.MessageBox]::Show([string]"Prendre le contrôle forcé sans le consentement de l'utilisateur ?", "Avertissement", [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Warning)
@@ -974,7 +1221,7 @@ $dgSessions.Add_MouseDoubleClick({
 
 $btnLaunch.Add_Click({
         $sel = $dgSessions.SelectedItem
-        if ($sel -eq $null) { return }
+        if ($sel -eq $null -or $sel.Etat -notmatch '^(?i:active|actif)$') { return }
     
         $mode = if ($rbView.IsChecked) { 'View' } elseif ($rbControl.IsChecked) { 'Control' } else { 'NoConsent' }
     
@@ -1023,6 +1270,8 @@ $btnScanNetwork.Add_Click({
             $Script:NetworkScanLaunched = 0
             $Script:NetworkScanCompleted = 0
             $Script:PendingPings = [System.Collections.Generic.Dictionary[string, object]]::new()
+            $Script:PendingDns = [System.Collections.Generic.Dictionary[string, object]]::new()
+            $Script:DnsQueue = [System.Collections.Generic.Queue[object]]::new()
             $Script:ScanObservable = New-Object System.Collections.ObjectModel.ObservableCollection[object]
             $dgNetworkScan.ItemsSource = $Script:ScanObservable
             $Script:NetworkScanCancelled = $false
