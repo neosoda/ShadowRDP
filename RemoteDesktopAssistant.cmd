@@ -21,8 +21,8 @@ if not exist "%PS1%" (
     exit /b 1
 )
 
-REM Verifier si on est deja administrateur (net session renvoie 0 si admin)
-net session >nul 2>&1
+REM fltmc verifie le jeton eleve sans dependre du service Serveur/LanmanServer.
+fltmc >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
     REM Relancer ce .cmd en administrateur via ShellExecute runas
     "%PSEXE%" -NoProfile -Command "Start-Process '%comspec%' -ArgumentList '/c ""%~f0""' -Verb RunAs"
