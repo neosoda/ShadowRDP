@@ -53,6 +53,7 @@ en environnement Active Directory Windows.
 - Double-clic sur une session → Shadow immédiat
 - Diagnostic TCP 3389/135/445 + DNS/ICMP, sans bloquer sur un ping filtré
 - Favoris et 10 derniers postes (préférences locales par opérateur)
+- Recherche d’ordinateurs Active Directory en LDAP, sans RSAT
 - Lancement RDP classique en un clic
 - Badge `DOMAINE\utilisateur` dynamique
 - Tri des colonnes dans les tableaux
@@ -313,6 +314,7 @@ Get-FileHash .\RemoteDesktopAssistantV1.4.ps1 -Algorithm SHA256
 
 - **Diagnostic intégré** : bouton *Diagnostiquer* (DNS, ICMP, RDP 3389/TCP, RPC 135/TCP, SMB 445/TCP).
 - **Favoris et historique** : stockage dans `%LOCALAPPDATA%\ShadowRDP\preferences.json`.
+- **Annuaire AD** : recherche de postes par nom ou FQDN depuis le domaine, sans installation de RSAT.
 - **Sessions** : timeout effectif de 5 secondes pour `qwinsta`, sortie et erreurs drainées sans interblocage.
 - **Scanner** : CIDR bornés à 1 024 adresses, DNS inverse asynchrone.
 - **Déploiement** : consentement requis par défaut (`ShadowMode=1`), sauvegarde et restauration de la configuration machine.
