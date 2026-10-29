@@ -1,0 +1,16 @@
+name: ShadowRDP - Windows PowerShell checks
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell, validate WPF XAML and test CIDR logic
+        shell: powershell
+        run: .\tests\Smoke.Tests.ps1
