@@ -877,6 +877,8 @@ $Script:NetworkScanLaunched = 0
 $Script:NetworkScanCompleted = 0
 $Script:NetworkScanBatchSize = 16
 $Script:PendingPings = [System.Collections.Generic.Dictionary[string, object]]::new()
+$Script:PendingDns = [System.Collections.Generic.Dictionary[string, object]]::new()
+$Script:DnsQueue = [System.Collections.Generic.Queue[object]]::new()
 $Script:ScanObservable = New-Object System.Collections.ObjectModel.ObservableCollection[object]
 $Script:NetworkScanTimer = New-Object System.Windows.Threading.DispatcherTimer
 $Script:NetworkScanTimer.Interval = [TimeSpan]::FromMilliseconds(80)
@@ -895,6 +897,8 @@ $Script:NetworkScanTimer.Add_Tick({
                     try { $entry.Ping.Dispose() } catch {}
                 }
                 $Script:PendingPings.Clear()
+                $Script:PendingDns.Clear()
+                $Script:DnsQueue.Clear()
                 $Script:NetworkScanTimer.Stop()
                 $Script:NetworkScanInProgress = $false
                 $btnScanNetwork.IsEnabled = $true
@@ -928,23 +932,53 @@ $Script:NetworkScanTimer.Add_Tick({
                     try { $entry.Ping.Dispose() } catch {}
 
                     if ($isOnline) {
-                        $hostName = "-"
-                        try { $hostName = [System.Net.Dns]::GetHostEntry($ip).HostName } catch {}
-                        $Script:ScanObservable.Add([PSCustomObject]@{
-                                IPAddress = $ip
-                                HostName  = $hostName
-                                Status    = "En ligne"
-                            })
+                        $host = [PSCustomObject]@{
+                            IPAddress = $ip
+                            HostName = "Résolution..."
+                            Status = "En ligne"
+                        }
+                        $Script:ScanObservable.Add($host)
+                        $Script:DnsQueue.Enqueue($host)
                     }
                 }
             }
+
+            # DNS lookups must never block the WPF dispatcher.
+            while ($Script:PendingDns.Count -lt 8 -and $Script:DnsQueue.Count -gt 0) {
+                $item = $Script:DnsQueue.Dequeue()
+                try {
+                    $task = [System.Net.Dns]::GetHostEntryAsync($item.IPAddress)
+                    $Script:PendingDns[$item.IPAddress] = [pscustomobject]@{
+                        Task = $task; Host = $item; Started = [DateTime]::UtcNow
+                    }
+                }
+                catch { $item.HostName = '-' }
+            }
+            $refresh = $false
+            foreach ($ip in @($Script:PendingDns.Keys)) {
+                $entry = $Script:PendingDns[$ip]
+                if ($entry.Task.IsCompleted) {
+                    try {
+                        $entry.Host.HostName = $entry.Task.GetAwaiter().GetResult().HostName
+                    }
+                    catch { $entry.Host.HostName = '-' }
+                    [void]$Script:PendingDns.Remove($ip)
+                    $refresh = $true
+                }
+                elseif (([DateTime]::UtcNow - $entry.Started).TotalSeconds -ge 3) {
+                    $entry.Host.HostName = '-'
+                    [void]$Script:PendingDns.Remove($ip)
+                    $refresh = $true
+                }
+            }
+            if ($refresh) { $dgNetworkScan.Items.Refresh() }
 
             $pbNetworkScan.Value = $Script:NetworkScanCompleted
             $lblNetworkScanProgress.Content = "Progression : $($Script:NetworkScanCompleted)/$total"
             $lblStatus.Content = "Scan réseau : $($Script:NetworkScanCompleted)/$total — $($Script:ScanObservable.Count) en ligne"
             $brdStatus.Background = "#FFFF9800"
 
-            if ($Script:NetworkScanCompleted -ge $total -and $Script:PendingPings.Count -eq 0) {
+            if ($Script:NetworkScanCompleted -ge $total -and $Script:PendingPings.Count -eq 0 -and $Script:PendingDns.Count -eq 0 -and $Script:DnsQueue.Count -eq 0) {
                 $Script:NetworkScanTimer.Stop()
                 $Script:NetworkScanInProgress = $false
                 $btnScanNetwork.IsEnabled = $true
@@ -960,6 +994,10 @@ $Script:NetworkScanTimer.Add_Tick({
             $detail = Get-ExceptionText -ErrorObject $_
             Write-ScanLog -Text ("Erreur timer scan: " + $detail)
             $Script:NetworkScanTimer.Stop()
+            foreach ($entry in @($Script:PendingPings.Values)) { try { $entry.Ping.Dispose() } catch {} }
+            $Script:PendingPings.Clear()
+            $Script:PendingDns.Clear()
+            $Script:DnsQueue.Clear()
             $Script:NetworkScanInProgress = $false
             $btnScanNetwork.IsEnabled = $true
             $btnCancelScanNetwork.IsEnabled = $false
@@ -1137,6 +1175,8 @@ $btnScanNetwork.Add_Click({
             $Script:NetworkScanLaunched = 0
             $Script:NetworkScanCompleted = 0
             $Script:PendingPings = [System.Collections.Generic.Dictionary[string, object]]::new()
+            $Script:PendingDns = [System.Collections.Generic.Dictionary[string, object]]::new()
+            $Script:DnsQueue = [System.Collections.Generic.Queue[object]]::new()
             $Script:ScanObservable = New-Object System.Collections.ObjectModel.ObservableCollection[object]
             $dgNetworkScan.ItemsSource = $Script:ScanObservable
             $Script:NetworkScanCancelled = $false
