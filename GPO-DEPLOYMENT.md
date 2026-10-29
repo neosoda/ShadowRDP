@@ -216,6 +216,10 @@ Si le Shadow affiche une erreur de strategie de groupe:
 - verifier qu'aucune autre GPO ne remet une valeur differente;
 - lancer `gpresult /h C:\Temp\gpresult.html` sur le poste cible.
 
+## Migration depuis les anciennes versions
+
+Si une version anterieure a deja modifie le poste, la sauvegarde creee par la version 4.1 capture son **etat actuel**, et non l'etat d'avant l'ancienne version. Ne pas considerer ce fichier comme une image historique du poste avant toute installation de ShadowRDP.
+
 ## Desinstallation securisee
 
 La premiere installation cree une sauvegarde de la configuration **avant modifications** :
