@@ -57,5 +57,5 @@ foreach ($target in @('', '/shadow:4', 'server /admin', 'foo"bar')) {
 $gpoText = Get-Content -LiteralPath $gpoFile -Raw -Encoding UTF8
 Assert-True ($gpoText.Contains('Save-DeploymentBackup')) 'GPO snapshots original configuration'
 Assert-True ($gpoText.Contains('Restore-DeploymentBackup')) 'GPO restores original configuration'
-Assert-True (-not $gpoText.Contains("Set-FirewallRules -NamePatterns $patterns -RemoteAddress 'Any' -Disable")) 'Uninstall does not blindly disable system firewall groups'
+Assert-True (-not $gpoText.Contains("Set-FirewallRules -NamePatterns `$patterns -RemoteAddress 'Any' -Disable")) 'Uninstall does not blindly disable system firewall groups'
 Write-Host 'All static and CIDR smoke checks passed.'
