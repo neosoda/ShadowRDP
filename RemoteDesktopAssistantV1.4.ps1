@@ -303,7 +303,7 @@ function Save-SupportPreferences {
         New-Item -ItemType Directory -Path (Split-Path $Script:SettingsPath -Parent) -Force | Out-Null
         $json = ConvertTo-Json -InputObject $Script:Preferences -Depth 4
         $temp = "$Script:SettingsPath.tmp"
-        [System.IO.File]::WriteAllText($temp, $json, (New-Object System.Text.UTF8Encoding($false)))
+        [System.IO.File]::WriteAllText($temp, $json, ([System.Text.UTF8Encoding]::new($false)))
         Move-Item -LiteralPath $temp -Destination $Script:SettingsPath -Force
     } catch { Write-ScanLog -Text ("Preferences non sauvegardees: " + $_.Exception.Message) }
 }
@@ -611,17 +611,22 @@ $xaml = @"
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>    <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0" Margin="0,0,18,0" MinWidth="260">
                                         <Label Content="Cible" Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold" FontSize="14"/>
                                         <TextBlock Text="Nom de l'ordinateur ou adresse IP" Foreground="{StaticResource TextMuted}" FontSize="12" Margin="0,4,0,8"/>
                                         <TextBox Name="txtComputerName"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,9,0,0">
+                                            <ComboBox Name="cbFavorites" Width="175" Height="32" Background="#20344F" Foreground="Black" ToolTip="Favoris et historique"/>
+                                            <Button Name="btnFavorite" Content="☆ Favori" MinHeight="32" Padding="9,0" Margin="9,0,0,0" Background="#334155"/>
+                                        </StackPanel>
                                     </StackPanel>
 
                                     <Button Name="btnConnect" Grid.Column="1" Content="Rechercher sessions" Background="{StaticResource AccentStrong}" Margin="0,31,10,0"/>
-                                    <Button Name="btnClassicRDP" Grid.Column="2" Content="RDP classique" Background="{StaticResource Success}" Margin="0,31,0,0" ToolTip="Ouvrir une session Bureau à distance classique"/>
+                                    <Button Name="btnClassicRDP" Grid.Column="2" Content="RDP classique" Background="{StaticResource Success}" Margin="0,31,10,0" ToolTip="Ouvrir une session Bureau à distance classique"/>
+                                    <Button Name="btnDiagnose" Grid.Column="3" Content="Diagnostiquer" Background="#334155" Margin="0,31,0,0"/>
                                 </Grid>
                             </Border>
 
@@ -811,6 +816,9 @@ $tabControlMain = $window.FindName("tabControlMain")
 $tabItemRDP = $window.FindName("tabItemRDP")
 $tabItemScan = $window.FindName("tabItemScan")
 $txtBadge = $window.FindName("txtBadge")
+$cbFavorites = $window.FindName("cbFavorites")
+$btnFavorite = $window.FindName("btnFavorite")
+$btnDiagnose = $window.FindName("btnDiagnose")
 $btnExportCsv = $window.FindName("btnExportCsv")
 
 $txtBadge.Text = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -822,6 +830,46 @@ $brdSessionsEmpty.Visibility = "Visible"
 $txtSessionsEmpty.Text = "Lancez une recherche pour afficher les sessions actives de la cible."
 
 $Script:CurrentTarget = ""
+$Script:Preferences = Read-SupportPreferences
+
+function Refresh-Favorites {
+    $choices = @($Script:Preferences.Favorites | ForEach-Object { "★ $_" }) +
+        @($Script:Preferences.Recent | Where-Object { $_ -notin $Script:Preferences.Favorites } | ForEach-Object { "↻ $_" })
+    $cbFavorites.ItemsSource = $null
+    $cbFavorites.ItemsSource = @($choices)
+    $cbFavorites.SelectedIndex = -1
+}
+Refresh-Favorites
+
+$cbFavorites.Add_SelectionChanged({
+    if ($null -ne $cbFavorites.SelectedItem) {
+        $txtComputerName.Text = ([string]$cbFavorites.SelectedItem).Substring(2).Trim()
+    }
+})
+$btnFavorite.Add_Click({
+    try {
+        $name = $txtComputerName.Text.Trim()
+        Assert-ComputerTarget -ComputerName $name
+        if ($name -in $Script:Preferences.Favorites) {
+            $Script:Preferences.Favorites = @($Script:Preferences.Favorites | Where-Object { $_ -ne $name })
+        } else {
+            $Script:Preferences.Favorites = @($Script:Preferences.Favorites) + @($name)
+        }
+        Save-SupportPreferences
+        Refresh-Favorites
+    }
+    catch { [System.Windows.MessageBox]::Show([string]$_.Exception.Message, 'Favoris') | Out-Null }
+})
+$btnDiagnose.Add_Click({
+    try {
+        $name = $txtComputerName.Text.Trim()
+        $lblStatus.Content = "Diagnostic de $name..."
+        $detail = Get-SupportDiagnostic -ComputerName $name
+        [System.Windows.MessageBox]::Show($detail, 'Diagnostic réseau ShadowRDP') | Out-Null
+        $lblStatus.Content = 'Diagnostic terminé.'
+    }
+    catch { [System.Windows.MessageBox]::Show([string]$_.Exception.Message, 'Diagnostic') | Out-Null }
+})
 $Script:NetworkScanInProgress = $false
 $Script:NetworkScanCancelled = $false
 $Script:NetworkScanTargets = @()
