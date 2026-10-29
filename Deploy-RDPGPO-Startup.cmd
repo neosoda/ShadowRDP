@@ -28,11 +28,11 @@ if not exist "%PS1%" (
 REM ExecutionPolicy Bypass uniquement pour ce processus, sans modifier la machine.
 "%PSEXE%" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass ^
     -File "%PS1%" ^
-    -ShadowMode 2 ^
+    -ShadowMode 3 ^
     -AllowedRemoteAddresses "LocalSubnet" ^
     -NetworkWaitTimeoutSeconds 0 ^
     -NetworkRetryIntervalSeconds 5 ^
-    -MaxAgeDays 7
+    -MaxAgeDays 0
 
 set RC=%ERRORLEVEL%
 endlocal & exit /b %RC%
