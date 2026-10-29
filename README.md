@@ -83,6 +83,7 @@ en environnement Active Directory Windows.
 - Wrapper `.cmd` gérant l'élévation admin
 - Mode audit `-WhatIf` et retrait `-Uninstall`
 - WinRM optionnel via `-EnableWinRM`
+- Règles WMI, SMB et journaux distants uniquement sur demande (`-EnableExtendedFirewallRules`)
 - Pas de redémarrage `TermService` par défaut
 
 </td>
@@ -164,6 +165,14 @@ La désinstallation restaure les paramètres d’origine enregistrés dans `%Pro
 powershell -ExecutionPolicy Bypass -File .\Deploy-RDPGPO.ps1 -Uninstall
 ```
 
+### Règles distantes étendues (optionnel)
+
+```powershell
+.\Deploy-RDPGPO.ps1 -EnableExtendedFirewallRules -MaxAgeDays 0
+```
+
+Cette option ouvre également les groupes WMI, SMB et journaux distants, toujours limités par `AllowedRemoteAddresses`. Ne l’activer que si le diagnostic le justifie.
+
 ### Activation WinRM (optionnel)
 
 ```powershell
@@ -219,7 +228,7 @@ Documentation détaillée : [`GPO-DEPLOYMENT.md`](GPO-DEPLOYMENT.md)
 | Fonction client | Prérequis cible configuré |
 |---|---|
 | Ping / scan réseau | Règle pare-feu `FPS-ICMP4-ERQ-In*` |
-| `qwinsta.exe /server:<poste>` | `RemoteRegistry` démarré + règles `RemoteSvc*`, `RemoteEventLog*`, `WMI-*`, `FPS-SMB-In*` |
+| `qwinsta.exe /server:<poste>` | `RemoteRegistry` et règles `RemoteSvc*` ; si nécessaire dans votre environnement, activer les règles additionnelles avec `-EnableExtendedFirewallRules` |
 | `mstsc.exe /v:<poste>` | RDP activé + règles `RemoteDesktop-*` |
 | `mstsc.exe /shadow` | `AllowRemoteRPC=1` + policy `Shadow=1` par défaut (avec consentement) |
 | `mstsc.exe /shadow /noConsentPrompt` | Exige une configuration explicite `-ShadowMode 2`, autorisée par la DSI |
