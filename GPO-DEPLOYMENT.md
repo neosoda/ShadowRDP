@@ -78,10 +78,22 @@ Effet:
 - `qwinsta /server:<poste>` rendu possible.
 - Ping entrant autorise pour le scan reseau.
 - Pare-feu limite a `LocalSubnet`.
+- Activation par defaut limitee aux groupes `RemoteDesktop-*`, `RemoteSvc*`, `FPS-ICMP4-ERQ-In*`.
+- Groupes `RemoteEventLog*`, `WMI-*` et `FPS-SMB-In*` uniquement avec `-EnableExtendedFirewallRules`.
 - Sauvegarde initiale du registre, des services et des regles pare-feu avant toute modification.
 - Verifications a chaque demarrage (`MaxAgeDays 0`).
 - Pas d'activation WinRM par defaut.
 - Pas de redemarrage `TermService` par defaut.
+
+## Ouverture pare-feu etendue (uniquement si necessaire)
+
+En cas d'echec de `qwinsta` alors que le poste repond, tester les regles RPC et les droits de l'operateur. Les groupes de regles supplementaires peuvent etre actives par :
+
+```powershell
+.\Deploy-RDPGPO.ps1 -EnableExtendedFirewallRules -MaxAgeDays 0
+```
+
+Evitez cette option si les regles minimales suffisent.
 
 ## Filtrage et securite
 
@@ -207,7 +219,7 @@ Si `ping` echoue:
 Si `qwinsta /server:<poste>` echoue:
 
 - verifier que `RemoteRegistry` est demarre;
-- verifier les regles `RemoteSvc*`, `RemoteEventLog*`, `WMI-*`, `FPS-SMB-In*`;
+- verifier `RemoteSvc*` et les droits locaux ; selon la configuration, tester `-EnableExtendedFirewallRules` (ouvre aussi WMI/SMB/journaux distants).
 - verifier les droits de l'utilisateur operateur sur le poste cible.
 
 Si le Shadow affiche une erreur de strategie de groupe:
