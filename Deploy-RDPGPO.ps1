@@ -17,7 +17,7 @@
 param(
     [Parameter()]
     [ValidateSet(0, 1, 2, 3, 4)]
-    [int]$ShadowMode = 3,
+    [int]$ShadowMode = 1,
 
     [Parameter()]
     [ValidateNotNullOrEmpty()]
