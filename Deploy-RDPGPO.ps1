@@ -257,6 +257,7 @@ function Test-AlreadyApplied {
     }
 
     try {
+        if ($state.LastStatus -ne 'Success') { return $false }
         if ($state.Version -ne $script:ScriptVersion) {
             return $false
         }
