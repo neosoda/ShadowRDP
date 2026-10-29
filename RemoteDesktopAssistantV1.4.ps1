@@ -252,6 +252,42 @@ function Assert-ComputerTarget {
         throw 'Nom de poste ou adresse IPv4 invalide.'
     }
 }
+function Find-DirectoryComputers {
+    param([string]$Query)
+    # Only literal hostname-like searches: never interpolate arbitrary LDAP syntax.
+    Assert-ComputerTarget -ComputerName $Query
+    $entry = $null
+    $search = $null
+    $results = $null
+    try {
+        $base = ([ADSI]'LDAP://RootDSE').defaultNamingContext
+        if ([string]::IsNullOrWhiteSpace($base)) { throw 'Aucun domaine Active Directory disponible.' }
+        $entry = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$base")
+        $search = New-Object System.DirectoryServices.DirectorySearcher($entry)
+        $search.Filter = "(&(objectCategory=computer)(|(name=*$Query*)(dNSHostName=*$Query*)))"
+        $search.SizeLimit = 50
+        $search.PageSize = 50
+        $search.ClientTimeout = [TimeSpan]::FromSeconds(5)
+        [void]$search.PropertiesToLoad.Add('name')
+        [void]$search.PropertiesToLoad.Add('dNSHostName')
+        $results = $search.FindAll()
+        return @(
+            foreach ($result in $results) {
+                if ($result.Properties['name'].Count -gt 0) {
+                    $name = [string]$result.Properties['name'][0]
+                    $dns = if ($result.Properties['dnshostname'].Count -gt 0) { [string]$result.Properties['dnshostname'][0] } else { $name }
+                    [pscustomobject]@{ Name = $name; DNS = $dns }
+                }
+            }
+        )
+    }
+    finally {
+        if ($null -ne $results) { $results.Dispose() }
+        if ($null -ne $search) { $search.Dispose() }
+        if ($null -ne $entry) { $entry.Dispose() }
+    }
+}
+
 function Test-TcpPort {
     param([string]$ComputerName, [int]$Port, [int]$TimeoutMs = 1200)
     $client = New-Object System.Net.Sockets.TcpClient
@@ -619,6 +655,7 @@ $xaml = @"
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
                                     <StackPanel Grid.Column="0" Margin="0,0,18,0" MinWidth="260">
@@ -633,7 +670,8 @@ $xaml = @"
 
                                     <Button Name="btnConnect" Grid.Column="1" Content="Rechercher sessions" Background="{StaticResource AccentStrong}" Margin="0,31,10,0"/>
                                     <Button Name="btnClassicRDP" Grid.Column="2" Content="RDP classique" Background="{StaticResource Success}" Margin="0,31,10,0" ToolTip="Ouvrir une session Bureau à distance classique"/>
-                                    <Button Name="btnDiagnose" Grid.Column="3" Content="Diagnostiquer" Background="#334155" Margin="0,31,0,0"/>
+                                    <Button Name="btnDiagnose" Grid.Column="3" Content="Diagnostiquer" Background="#334155" Margin="0,31,10,0"/>
+                                    <Button Name="btnADSearch" Grid.Column="4" Content="Annuaire AD" Background="#334155" Margin="0,31,0,0"/>
                                 </Grid>
                             </Border>
 
@@ -826,6 +864,7 @@ $txtBadge = $window.FindName("txtBadge")
 $cbFavorites = $window.FindName("cbFavorites")
 $btnFavorite = $window.FindName("btnFavorite")
 $btnDiagnose = $window.FindName("btnDiagnose")
+$btnADSearch = $window.FindName("btnADSearch")
 $btnExportCsv = $window.FindName("btnExportCsv")
 
 $txtBadge.Text = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
@@ -867,6 +906,55 @@ $btnFavorite.Add_Click({
     }
     catch { [System.Windows.MessageBox]::Show([string]$_.Exception.Message, 'Favoris') | Out-Null }
 })
+$btnADSearch.Add_Click({
+    try {
+        $query = $txtComputerName.Text.Trim()
+        Assert-ComputerTarget -ComputerName $query
+        $lblStatus.Content = "Recherche Active Directory : $query..."
+        $found = @(Find-DirectoryComputers -Query $query)
+        if ($found.Count -eq 0) {
+            [System.Windows.MessageBox]::Show('Aucun ordinateur correspondant.', 'Annuaire AD') | Out-Null
+            $lblStatus.Content = 'Aucun résultat AD.'
+            return
+        }
+        $dlg = New-Object System.Windows.Window
+        $dlg.Title = "Ordinateurs AD ($($found.Count) résultats)"
+        $dlg.Width = 480
+        $dlg.Height = 390
+        $dlg.MinWidth = 380
+        $dlg.WindowStartupLocation = 'CenterOwner'
+        $dlg.Owner = $window
+        $dlg.Background = '#101827'
+        $panel = New-Object System.Windows.Controls.DockPanel
+        $list = New-Object System.Windows.Controls.ListBox
+        $list.ItemsSource = $found
+        $list.DisplayMemberPath = 'DNS'
+        $list.Margin = '16'
+        $list.FontSize = 14
+        $list.MinHeight = 240
+        $choose = New-Object System.Windows.Controls.Button
+        $choose.Content = 'Utiliser ce poste'
+        $choose.Margin = '16,0,16,16'
+        $choose.MinHeight = 40
+        $choose.Add_Click({
+            if ($null -ne $list.SelectedItem) {
+                $txtComputerName.Text = [string]$list.SelectedItem.DNS
+                $dlg.DialogResult = $true
+            }
+        })
+        [System.Windows.Controls.DockPanel]::SetDock($choose, 'Bottom')
+        [void]$panel.Children.Add($choose)
+        [void]$panel.Children.Add($list)
+        $dlg.Content = $panel
+        [void]$dlg.ShowDialog()
+        $lblStatus.Content = 'Recherche Active Directory terminée.'
+    }
+    catch {
+        $lblStatus.Content = 'Active Directory indisponible.'
+        [System.Windows.MessageBox]::Show([string]$_.Exception.Message, 'Recherche AD') | Out-Null
+    }
+})
+
 $btnDiagnose.Add_Click({
     try {
         $name = $txtComputerName.Text.Trim()
