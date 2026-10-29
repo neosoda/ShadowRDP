@@ -63,21 +63,23 @@ Le wrapper execute:
 
 ```cmd
 Deploy-RDPGPO.ps1 ^
-  -ShadowMode 2 ^
+  -ShadowMode 3 ^
   -AllowedRemoteAddresses "LocalSubnet" ^
   -NetworkWaitTimeoutSeconds 0 ^
   -NetworkRetryIntervalSeconds 5 ^
-  -MaxAgeDays 7
+  -MaxAgeDays 0
 ```
 
 Effet:
 
 - RDP active.
 - NLA active.
-- Shadow RDP autorise en controle sans consentement.
+- Shadow RDP autorise en controle **avec consentement** (mode 3). Le mode 2 sans consentement exige une configuration explicite et une autorisation de la DSI.
 - `qwinsta /server:<poste>` rendu possible.
 - Ping entrant autorise pour le scan reseau.
 - Pare-feu limite a `LocalSubnet`.
+- Sauvegarde initiale du registre, des services et des regles pare-feu avant toute modification.
+- Verifications a chaque demarrage (`MaxAgeDays 0`).
 - Pas d'activation WinRM par defaut.
 - Pas de redemarrage `TermService` par defaut.
 
@@ -137,7 +139,7 @@ Valeurs attendues:
 fDenyTSConnections = 0
 AllowRemoteRPC     = 1
 UserAuthentication = 1
-Shadow             = 2
+Shadow             = 3
 ```
 
 Verifier les services:
@@ -169,7 +171,7 @@ Puis tester dans l'application:
 - scan reseau;
 - chargement des sessions;
 - connexion RDP classique;
-- Shadow en mode `NoConsent`.
+- Shadow en mode **avec consentement**. Tester `NoConsent` seulement si la DSI autorise explicitement `-ShadowMode 2`.
 
 ## Codes retour
 
@@ -210,9 +212,21 @@ Si `qwinsta /server:<poste>` echoue:
 
 Si le Shadow affiche une erreur de strategie de groupe:
 
-- verifier que `Shadow=2`;
+- verifier que `Shadow=3` (ou `2` si derogation explicite);
 - verifier qu'aucune autre GPO ne remet une valeur differente;
 - lancer `gpresult /h C:\Temp\gpresult.html` sur le poste cible.
+
+## Desinstallation securisee
+
+La premiere installation cree une sauvegarde de la configuration **avant modifications** :
+
+```text
+%ProgramData%\ShadowRDP\deployment-backup.json
+```
+
+`Deploy-RDPGPO.ps1 -Uninstall` utilise cette sauvegarde pour restaurer les valeurs de registre, le demarrage des services et l'etat des regles pare-feu. S'il n'existe aucune sauvegarde exploitable, il **refuse** une desinstallation destructive. Une reinstallation conserve la sauvegarde initiale. Ne la supprimez pas manuellement.
+
+**Prudence :** des modifications de GPO ou de pare-feu intervenues apres le deploiement peuvent entrer en conflit avec une restauration. Tester sur une OU pilote et coordonner avec l'administrateur de la strategie de domaine.
 
 ## Notes importantes
 
