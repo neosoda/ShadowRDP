@@ -51,6 +51,8 @@ en environnement Active Directory Windows.
 
 - RDP Shadow : visualisation, contrôle, no-consent
 - Double-clic sur une session → Shadow immédiat
+- Diagnostic TCP 3389/135/445 + DNS/ICMP, sans bloquer sur un ping filtré
+- Favoris et 10 derniers postes (préférences locales par opérateur)
 - Lancement RDP classique en un clic
 - Badge `DOMAINE\utilisateur` dynamique
 - Tri des colonnes dans les tableaux
@@ -62,6 +64,7 @@ en environnement Active Directory Windows.
 **Scan réseau CIDR**
 
 - 16 pings async en parallèle — /24 en ~16 s
+- Résolution DNS inverse asynchrone, limite de sécurité de 1 024 adresses
 - Résultats affichés en temps réel
 - Export CSV via boîte de dialogue native
 - Bascule automatique vers l'onglet Assistant
@@ -74,7 +77,8 @@ en environnement Active Directory Windows.
 
 **Déploiement GPO**
 
-- Script idempotent avec marqueur de version
+- Script idempotent avec marqueur de version et contrôle à chaque démarrage
+- Sauvegarde initiale de la configuration machine, restauration prudente à la désinstallation
 - Wrapper `.cmd` gérant l'élévation admin
 - Mode audit `-WhatIf` et retrait `-Uninstall`
 - WinRM optionnel via `-EnableWinRM`
@@ -153,6 +157,8 @@ powershell -ExecutionPolicy Bypass -File .\Deploy-RDPGPO.ps1 -WhatIf -MaxAgeDays
 
 ### Retrait de la configuration
 
+La désinstallation restaure les paramètres d’origine enregistrés dans `%ProgramData%\ShadowRDP\deployment-backup.json`. Si la sauvegarde manque, le script refuse de désactiver aveuglément RDP ou les règles système.
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Deploy-RDPGPO.ps1 -Uninstall
 ```
@@ -181,10 +187,10 @@ Le wrapper lance PowerShell en `-NoProfile -NonInteractive -ExecutionPolicy Bypa
 
 | Paramètre | Valeur par défaut |
 |---|---|
-| `ShadowMode` | `2` |
+| `ShadowMode` | `3` (contrôle avec consentement) |
 | `AllowedRemoteAddresses` | `LocalSubnet` |
 | `NetworkWaitTimeoutSeconds` | `0` |
-| `MaxAgeDays` | `7` |
+| `MaxAgeDays` | `0` (contrôle à chaque exécution) |
 | Redémarrage `TermService` | Non |
 | Activation WinRM | Non |
 
@@ -214,7 +220,8 @@ Documentation détaillée : [`GPO-DEPLOYMENT.md`](GPO-DEPLOYMENT.md)
 | Ping / scan réseau | Règle pare-feu `FPS-ICMP4-ERQ-In*` |
 | `qwinsta.exe /server:<poste>` | `RemoteRegistry` démarré + règles `RemoteSvc*`, `RemoteEventLog*`, `WMI-*`, `FPS-SMB-In*` |
 | `mstsc.exe /v:<poste>` | RDP activé + règles `RemoteDesktop-*` |
-| `mstsc.exe /shadow /noConsentPrompt` | `AllowRemoteRPC=1` + policy `Shadow=2` par défaut |
+| `mstsc.exe /shadow` | `AllowRemoteRPC=1` + policy `Shadow=3` par défaut (avec consentement) |
+| `mstsc.exe /shadow /noConsentPrompt` | Exige une configuration explicite `-ShadowMode 2`, autorisée par la DSI |
 
 > [!NOTE]
 > WinRM n'est pas requis par l'application et reste désactivé par défaut.
@@ -235,12 +242,13 @@ Le champ scan accepte plusieurs formats :
 **Comportement :**
 
 - **16 pings asynchrones en parallèle** — un /24 se complète en ~16 s
-- Fenêtre réactive — scan non bloquant via `DispatcherTimer` + `PingAsync`
+- Fenêtre réactive — scan non bloquant via `DispatcherTimer` + `PingAsync` + DNS inverse asynchrone
 - Hôtes en ligne affichés **en temps réel** dans le tableau
 - `Annuler` interrompt proprement le scan et libère les ressources
 - `Exporter CSV` sauvegarde les résultats via une boîte de dialogue native
 - `Utiliser la sélection` copie l'IP et bascule automatiquement vers l'onglet Assistant
 - Erreurs journalisées dans `%TEMP%\RemoteDesktopAssistant-scan.log`
+- Refus des plages plus grandes que `/22`, `/31` et `/32` pris en charge
 
 ---
 
@@ -289,7 +297,7 @@ Chaque action sensible est journalisée dans `C:\Windows\Logs\RemoteDesktopAssis
 2026-05-02 14:23:21 | DOMAINE\jdupont | PC-SUPPORT | SHADOW_NoConsent | 192.168.1.45 (SessionID=2, Utilisateur=jmartin)
 ```
 
-Ce log constitue la preuve d'usage légitime lors d'une investigation SOC.
+Ce journal local facilite l'audit mais ne constitue pas, à lui seul, une preuve infalsifiable : pour un audit central, collecter les événements dans le SIEM.
 
 ### Exclusion HarfangLab
 
@@ -298,6 +306,19 @@ Après signature et validation RSSI, ajouter une exclusion dans la console Harfa
 ```powershell
 Get-FileHash .\RemoteDesktopAssistantV1.4.ps1 -Algorithm SHA256
 ```
+
+---
+
+## Nouveautés de la branche 1.5
+
+- **Diagnostic intégré** : bouton *Diagnostiquer* (DNS, ICMP, RDP 3389/TCP, RPC 135/TCP, SMB 445/TCP).
+- **Favoris et historique** : stockage dans `%LOCALAPPDATA%\ShadowRDP\preferences.json`.
+- **Sessions** : timeout effectif de 5 secondes pour `qwinsta`, sortie et erreurs drainées sans interblocage.
+- **Scanner** : CIDR bornés à 1 024 adresses, DNS inverse asynchrone.
+- **Déploiement** : consentement requis par défaut (`ShadowMode=3`), sauvegarde et restauration de la configuration machine.
+- **CI** : analyse syntaxique PowerShell, validation XAML et tests CIDR sous Windows.
+
+> **Attention :** les fonctions GUI et GPO doivent être validées sur un poste Windows et une OU pilote avant déploiement large. La CI n'effectue pas de session Shadow réelle.
 
 ---
 
