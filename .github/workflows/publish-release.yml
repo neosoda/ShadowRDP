@@ -19,7 +19,7 @@ jobs:
 
       - name: Run Windows PowerShell smoke tests
         shell: powershell
-        run: .\\tests\\Smoke.Tests.ps1
+        run: .\tests\Smoke.Tests.ps1
 
       - name: Publish v1.5.0 on the merged commit
         shell: pwsh
